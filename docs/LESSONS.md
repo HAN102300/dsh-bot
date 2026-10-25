@@ -94,3 +94,21 @@ README 18 个工具、API.md 15 个、manifest 21 个、实际 22 个——四�
 
 **18. 每个阶段独立成提交。**
 回滚基线比回滚机制更早可用。
+
+## #20 包名即身份：改 package.json name 会打断 client graph 对账（2026-10-25）
+
+- **现象**：npm 发布需要 scoped 包名，把 `package.json` 的 `name` 从 `dsh-bot` 改为
+  `@zifeng1023/dsh-bot`。此后宿主每次重启 host 侧完全正常（24 工具注册、0 错误、
+  调度器照跑），但 client bundle 在浏览器端**从未执行**——面板整体消失，且
+  禁用/启用插件、多次重启、硬刷新均无效。
+- **根因**：`dsh-client-modules` 对每个已装插件做 `incremental dsh.client scan`，
+  client bundle 的「插件→URL」图谱按包名对账。`link:` 安装的插件改名后，
+  旧图谱条目失效、新条目未被增量扫描收录，client 图谱里这个插件就"消失"了。
+- **诊断关键**：`~/.dsh/bot/.client-status.json` 只收到 host 侧状态；给 client bundle
+  顶部加「文件级哨兵」（factory 之前直接 fetch 上报），重启后零上报 →
+  一次性区分「文件没被加载」vs「加载后抛错」。这个二分法省掉了整条盲修路。
+- **修复**：本地包名回滚为 `dsh-bot`。npm 侧已发布的 `@zifeng1023/dsh-bot` 保留
+  （收录走 GitHub url + repository 字段映射，npm 包名与本地开发名允许不同）。
+- **规则**：`link:` 本地开发插件的 package.json `name` 是宿主多处的对账主键
+  （client graph / dsh.profile.bundles / loader entry），**发布需求也不能改名——
+  要么一开始就用 scoped 名，要么用 `files`+`publishConfig` 双名技巧并自测 client 激活**。
