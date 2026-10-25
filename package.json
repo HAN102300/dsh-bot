@@ -1,5 +1,5 @@
 {
-  "name": "@zifeng1023/dsh-bot",
+  "name": "dsh-bot",
   "version": "0.3.0",
   "description": "常驻 AI 队友：记得住、守得住、收得回。默认 dry-run 演习、执行前自动快照、可一键回滚，并支持错峰调度省钱。",
   "repository": {
@@ -86,6 +86,7 @@
   },
   "license": "MIT"
 }
+
 
 
 
