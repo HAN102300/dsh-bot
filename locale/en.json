@@ -1,0 +1,15 @@
+{
+  "title": "DSH Bot",
+  "description": "Always-on AI teammates: remembers, watches, and can roll back",
+  "commands": {
+    "bot_create": {
+      "description": "Create an always-on AI teammate"
+    },
+    "bot_list": {
+      "description": "List all bots"
+    },
+    "bot_run": {
+      "description": "Run once (dry-run by default)"
+    }
+  }
+}

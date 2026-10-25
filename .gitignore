@@ -1,0 +1,10 @@
+node_modules/
+lib/
+dist/
+*.tsbuildinfo
+.vite/
+
+# 本地开发规划与会话记录（不公开）
+docs/ROADMAP*.md
+docs/archive/
+*.bundle

@@ -1,0 +1,37 @@
+# dsh-bot — 常驻 AI 队友
+#
+# 三支柱：记得住 · 守得住 · 收得回
+#
+# 配置说明：
+#   homeDir                  数据根目录，默认 ~/.dsh/bot
+#   defaultProvider          模型提供方。⚠️ 各环境名称不同（workbuddy / deepseek-official 等），
+#                            留 'deepseek' 时会自动探测 ctx.llm.listProviders()
+#                            也可用环境变量 DSH_BOT_PROVIDER 覆盖
+#   defaultModel             默认模型，默认 deepseek-flash
+#   defaultReasoningEffort   默认推理强度 low | high | max，默认 high
+#   defaultDryRun            ⭐ 默认 dry-run（安全优先），默认 true
+#   schedulerTickMs          调度器 tick 间隔，默认 30000
+#   costSensitiveScheduling  ⭐ 错峰调度（避开 DeepSeek 高峰时段），默认 true
+#   defaultDailyCny          默认每日预算（人民币），默认 5
+#   defaultMonthlyCny        默认每月预算（人民币），默认 100
+#   snapshotKeepRecent       ⭐ 每个 Bot 保留多少个 workspace 快照，默认 10
+#   snapshotEnabled          ⭐ 真实执行前是否自动打快照，默认 true
+#
+# 用户可在自己 profile 的 cordis.patch.yml 中覆盖任意一行，
+# 注意：patch 会替换整行 config，需要重述所有需要的键。
+
+- insert:
+    - id: dsh-bot-core
+      name: dsh-bot
+      config:
+        homeDir: '~/.dsh/bot'
+        defaultProvider: deepseek
+        defaultModel: deepseek-flash
+        defaultReasoningEffort: high
+        defaultDryRun: true
+        schedulerTickMs: 30000
+        costSensitiveScheduling: true
+        defaultDailyCny: 5
+        defaultMonthlyCny: 100
+        snapshotKeepRecent: 10
+        snapshotEnabled: true

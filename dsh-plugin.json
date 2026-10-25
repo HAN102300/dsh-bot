@@ -1,0 +1,124 @@
+{
+  "$schema": "https://raw.githubusercontent.com/T-Auto/dsh-std/main/packages/manifest/schema/dsh-plugin-0.15.schema.json",
+  "manifestVersion": "0.15",
+  "id": "dsh-bot.core",
+  "name": "dsh-bot",
+  "version": "0.2.0",
+  "license": "MIT",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
+    },
+    "client": {
+      "entry": "lib/client.js",
+      "platform": "web"
+    }
+  },
+  "requires": {
+    "contracts": [
+      {
+        "apiVersion": "tools.dsh/v1alpha1",
+        "kind": "Tool"
+      }
+    ]
+  },
+  "permissions": [
+    {
+      "name": "dsh-bot.fs.read",
+      "scope": "dsh-home",
+      "reason": "读取 ~/.dsh/bot 下的 Bot 配置、记忆与运行记录"
+    },
+    {
+      "name": "dsh-bot.fs.write",
+      "scope": "dsh-home",
+      "reason": "写入记忆、运行记录、目标状态与 Routine 定义"
+    },
+    {
+      "name": "dsh-bot.workspace.write",
+      "scope": "filesystem-write",
+      "reason": "Bot 在各自独立工作区内读写文件，路径经 startsWith 校验防穿越"
+    },
+    {
+      "name": "dsh-bot.process.spawn",
+      "scope": "subprocess",
+      "reason": "调度器与 Routine 中的 shell 步骤需要启动子进程"
+    },
+    {
+      "name": "dsh-bot.network",
+      "scope": "network",
+      "reason": "通过宿主 LLM 服务调用 DeepSeek 等模型 API，以及 Routine 中的网络步骤"
+    }
+  ],
+  "contributes": {
+    "x-display": [
+      {
+        "icon": "./icon.png",
+        "title": "DSH Bot",
+        "description": "常驻 AI 队友：记得住、守得住、收得回。每 Bot 独立工作区与预算，默认 dry-run，全量审计可回滚。",
+        "locales": [
+          "locale/zh.json",
+          "locale/en.json"
+        ]
+      }
+    ],
+    "x-prompt-sections": [
+      {
+        "name": "dsh-bot:always-on-teammates",
+        "order": 3300,
+        "summary": "用户提出持久型需求时主动建议转交常驻 Bot。识别信号：每 N 小时/每天/定期/持续/一直/盯着/守护/监测/每当…出现时，或「以后都要/跨会话记得」类诉求。协议（建议+确认）：先复述理解的【目标 + 类型（一次性/常驻守护）+ 执行节奏 + 预算预估】征求用户同意，用户确认后调用 bot_adopt 一次完成接手（建 Bot + 设带节奏的目标 + 立即演习）。边界：一次性问题（看代码/改 bug/查资料/单次问答）不要推荐 Bot，不要在用户没确认前调用 bot_adopt。Bot 的执行默认 dry-run 演习，真实执行需用户显式同意；每次动作可快照回滚、有人民币预算熔断。"
+      }
+    ],
+    "x-tool-namespaces": [
+      {
+        "serverName": "dsh-bot",
+        "transport": "in-process",
+        "source": "dsh-bot plugin",
+        "publicPrefix": "bot_",
+        "tools": [
+          "create",
+          "list",
+          "show",
+          "update",
+          "delete",
+          "recall",
+          "memory_add",
+          "runs",
+          "run",
+          "snapshots",
+          "rollback",
+          "snapshot",
+          "schedule",
+          "schedules",
+          "heartbeat",
+          "goal",
+          "adopt"
+        ],
+        "shellPermission": "仅读写 ~/.dsh/bot 与各 Bot 工作区"
+      },
+      {
+        "serverName": "dsh-bot",
+        "transport": "in-process",
+        "source": "dsh-bot plugin (routine)",
+        "publicPrefix": "routine_",
+        "tools": [
+          "list",
+          "show",
+          "draft",
+          "save",
+          "delete",
+          "run"
+        ],
+        "shellPermission": "随 Routine 步骤继承，受 dry-run 与预算约束"
+      }
+    ],
+    "x-components": [
+      {
+        "id": "dsh-bot-core",
+        "entry": "dsh-bot",
+        "defaultEnabled": true
+      }
+    ]
+  },
+  "subscriptions": []
+}

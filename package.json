@@ -1,0 +1,83 @@
+{
+  "name": "dsh-bot",
+  "version": "0.3.0",
+  "description": "常驻 AI 队友：记得住、守得住、收得回。默认 dry-run 演习、执行前自动快照、可一键回滚，并支持错峰调度省钱。",
+  "type": "module",
+  "main": "lib/index.js",
+  "icon": "./icon.png",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "dsh-plugin.json",
+    "icon.png",
+    "locale",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "dsh": ">=0.2.0 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "bot",
+    "agent",
+    "always-on",
+    "dry-run",
+    "rollback",
+    "snapshot",
+    "scheduler",
+    "cron",
+    "deepseek",
+    "qwen",
+    "kimi"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-tools": "file:./vendor/dsh-tools",
+    "@deepseek-ai/schemastery": "~3.18.5",
+    "@types/node": "^26.6.5",
+    "tsdown": "^0.15.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepare": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "verify:client": "node dev/verify-client.mjs",
+    "verify:static": "node dev/check-undefined.mjs",
+    "verify:e2e": "node dev/demo-goal-cycle.mjs && node dev/demo-goal-cadence.mjs && node dev/demo-model-binding.mjs",
+    "verify:all": "npm run verify:static && npm run typecheck && npm run test && npm run build && npm run verify:client && npm run verify:e2e",
+    "gen:tools": "node dev/gen-tools-doc.mjs"
+  },
+  "license": "MIT"
+}
+
