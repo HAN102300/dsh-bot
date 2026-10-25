@@ -485,6 +485,17 @@ report('bundle-executing', 'v2 design-system');
 // 插件
 // ============================================================
 
+// ============================================================
+// 加载哨兵：文件一旦被宿主执行就立即上报（factory 之前）。
+// 用于区分「文件没被加载」vs「加载后抛错」两种故障。
+// ============================================================
+try {
+  fetch('/_dsh-bot/client-status', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'sentinel', detail: 'bundle file evaluated', at: new Date().toISOString() }),
+  }).catch(function () {});
+} catch (e) {}
 window.__ModuleLoader__.load({
   id: 'dsh-bot',
   factory: (require) => {
@@ -4008,10 +4019,11 @@ window.__ModuleLoader__.load({
 
         report('ok', 'v2 activated, slot=conversation.input.dock');
       } catch (e) {
-        report('error', String(e?.message ?? e));
+        report('error', (e?.stack ?? String(e)).slice(0, 900));
       }
     }
 
     return { name: 'dsh-bot-client', inject, apply };
   },
 });
+

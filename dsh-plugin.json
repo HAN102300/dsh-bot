@@ -3,7 +3,7 @@
   "manifestVersion": "0.15",
   "id": "dsh-bot.core",
   "name": "dsh-bot",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "facets": {
     "host": {
@@ -122,3 +122,4 @@
   },
   "subscriptions": []
 }
+

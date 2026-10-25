@@ -8,3 +8,5 @@ dist/
 docs/ROADMAP*.md
 docs/archive/
 *.bundle
+*.tgz
+RELEASE-NOTES*
