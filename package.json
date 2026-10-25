@@ -2,6 +2,10 @@
   "name": "dsh-bot",
   "version": "0.3.0",
   "description": "常驻 AI 队友：记得住、守得住、收得回。默认 dry-run 演习、执行前自动快照、可一键回滚，并支持错峰调度省钱。",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HAN102300/dsh-bot.git"
+  },
   "type": "module",
   "main": "lib/index.js",
   "icon": "./icon.png",
@@ -22,7 +26,9 @@
     "icon.png",
     "locale",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "screenshots.json",
+    "assets"
   ],
   "engines": {
     "dsh": ">=0.2.0 <0.3.0"
@@ -53,8 +59,8 @@
     "kimi"
   ],
   "peerDependencies": {
-    "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/dsh-tools": "*"
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.1 <0.3.0-0 || >=0.2.0 <0.4.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
@@ -80,4 +86,6 @@
   },
   "license": "MIT"
 }
+
+
 
