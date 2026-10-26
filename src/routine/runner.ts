@@ -1016,6 +1016,36 @@ export class RoutineRunner {
 
     await this.recordMemory(botId, record, `执行任务「${task.slice(0, 60)}」`, 'task');
 
+    // ⭐ 结果蒸馏：真实成功运行的首行产出进 semantic.facts，
+    //    供「他知道什么」面板与后续轮次的系统提示使用。
+    //    为什么只取首行：产出是面向用户的报告，首行是结论（总览）；
+    //    为什么要去重+上限：同任务每轮产出高度相似，不去重 facts 会膨胀。
+    //    仅 goal/schedule 触发的常驻轮次蒸馏——手动点「执行」是人在场
+    //    的试探，不值得污染长期记忆。
+    if (
+      record.status === 'success' &&
+      !record.dryRun &&
+      (record.trigger === 'goal' || record.trigger === 'schedule')
+    ) {
+      try {
+        const llmStep = record.steps.find((s) => s.kind === 'llm') as
+          | { result?: { output?: unknown } }
+          | undefined;
+        const out = llmStep?.result?.output;
+        if (typeof out === 'string' && out.trim()) {
+          const firstLine =
+            out
+              .split('\n')
+              .map((l) => l.trim())
+              .find((l) => l && !l.startsWith('#') && !l.startsWith('|') && !l.startsWith('```')) ?? '';
+          const fact = firstLine.slice(0, 120);
+          if (fact) await this.deps.service.addFact(botId, `[${record.startedAt.slice(5, 16).replace('T', ' ')}] ${fact}`);
+        }
+      } catch {
+        // 蒸馏失败不影响运行本身
+      }
+    }
+
     return record;
   }
 

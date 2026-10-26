@@ -830,7 +830,7 @@ export function makeBotApiRoutes(
                 modelFallback: r.steps?.[0]?.args?.modelFallback,
                 outputPreview:
                   typeof r.steps?.[0]?.result?.output === 'string'
-                    ? r.steps[0].result.output.slice(0, 200)
+                    ? r.steps[0].result.output.slice(0, 50_000)
                     : undefined,
                 stepCount: r.steps?.length ?? 0,
                 toolSteps: (r.steps ?? [])
@@ -1219,3 +1219,4 @@ async function archiveGoalFor(
   await service.clearGoal(botId);
   return archive;
 }
+

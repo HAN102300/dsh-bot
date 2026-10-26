@@ -1638,23 +1638,80 @@ window.__ModuleLoader__.load({
                     ),
                   )
                 : null,
-              // ---- 输出预览 ----
-              h(
-                'div',
-                null,
-                h('div', { style: { fontSize: 11, fontWeight: 600, color: LABEL_2, marginBottom: 4 } }, '输出预览（前 200 字）'),
-                h(
+              // ---- 运行输出（全文可滚动；markdown 以等宽渲染；文件产物给路径提示） ----
+              (() => {
+                const out = run.outputPreview || '';
+                const chars = out.length;
+                // 文件产物识别：输出中引用的本地文件路径（Windows 盘符 / ~/.dsh 常见落点）
+                const pathMatches = [
+                  ...new Set(
+                    (out.match(/([A-Za-z]:\\[^\s"]+\.[a-z0-9]{2,4})|(~\/\.dsh\/[^\s"]+\.[a-z0-9]{2,4})/gi) || []),
+                  ).filter((p) => /\.(md|txt|json|ya?ml|log|csv|html?|tgz|zip|png|jpe?g)$/i.test(p)),
+                ];
+                const truncated = out.includes('[已截断') || chars >= 50_000;
+                return h(
                   'div',
-                  {
-                    style: {
-                      fontSize: 11, color: LABEL_1, padding: 8, borderRadius: R_SM,
-                      background: BG_L3, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                      maxHeight: 160, overflow: 'auto',
+                  null,
+                  h(
+                    'div',
+                    { style: { display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 } },
+                    h('div', { style: { fontSize: 11, fontWeight: 600, color: LABEL_2 } }, '运行输出'),
+                    h(
+                      'div',
+                      { style: { fontSize: 10, color: LABEL_3, flex: 1 } },
+                      chars ? `${chars.toLocaleString()} 字${truncated ? '（超长已截断，完整全文见 runs 归档 JSON）' : ''}` : '',
+                    ),
+                    chars
+                      ? h(
+                          'button',
+                          {
+                            type: 'button',
+                            onClick: () => {
+                              try { navigator.clipboard.writeText(out); } catch {}
+                            },
+                            style: {
+                              border: 'none', background: 'transparent', cursor: 'pointer',
+                              fontSize: 10, color: BRAND, textDecoration: 'underline',
+                            },
+                          },
+                          '复制全文',
+                        )
+                      : null,
+                  ),
+                  // 文件产物提示：报告落盘/导出的路径让用户找得到
+                  pathMatches.length
+                    ? h(
+                        'div',
+                        {
+                          style: {
+                            fontSize: 10, color: BRAND, padding: '5px 8px', marginBottom: 4,
+                            borderRadius: R_SM, background: BG_L3, lineHeight: 1.7,
+                          },
+                        },
+                        '📎 本轮提到的文件产物：',
+                        ...pathMatches.slice(0, 5).map((p, i) =>
+                          h(
+                            'div',
+                            { key: i, style: { fontFamily: 'ui-monospace, monospace', wordBreak: 'break-all' } },
+                            p,
+                          ),
+                        ),
+                      )
+                    : null,
+                  h(
+                    'div',
+                    {
+                      style: {
+                        fontSize: 11, color: LABEL_1, padding: 8, borderRadius: R_SM,
+                        background: BG_L3, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                        maxHeight: 260, overflow: 'auto', lineHeight: 1.6,
+                      },
                     },
-                  },
-                  run.outputPreview || '（无）',
-                ),
-              ),
+                    out || '（无文本输出——若本轮产出为文件，见上方路径提示或运行归档）',
+                  ),
+                );
+              })(),
             ),
           );
         }
@@ -3577,6 +3634,19 @@ window.__ModuleLoader__.load({
                                       : null,
                                     detail.routines?.length
                                       ? renderRoutines(detail.routines)
+                                      : null,
+                                    !(detail.semantic?.facts?.length) && !(detail.routines?.length)
+                                      ? h(
+                                          'div',
+                                          {
+                                            style: {
+                                              fontSize: 10, color: LABEL_3, lineHeight: 1.8,
+                                              padding: '6px 8px', borderRadius: R_SM, background: BG_L3,
+                                              marginBottom: 6,
+                                            },
+                                          },
+                                          '还没有长期记忆。从下一次定时运行起，每轮报告的首行结论会自动蒸馏到这里（上限 50 条，去重）。',
+                                        )
                                       : null,
                                   )
                                 : null,
