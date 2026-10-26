@@ -112,3 +112,17 @@ README 18 个工具、API.md 15 个、manifest 21 个、实际 22 个——四�
 - **规则**：`link:` 本地开发插件的 package.json `name` 是宿主多处的对账主键
   （client graph / dsh.profile.bundles / loader entry），**发布需求也不能改名——
   要么一开始就用 scoped 名，要么用 `files`+`publishConfig` 双名技巧并自测 client 激活**。
+
+## #21 「点击才渲染」的路径是测试盲区（2026-10-26）
+
+- **现象**：运行详情弹窗点开即白屏——`new Set(arr).filter()`（Set 无 filter）
+  抛 TypeError，React 整树崩溃。当时 330 个单测全绿。
+- **根因**：所有单测覆盖的是数据与宿主契约；**弹窗是点击后才渲染的 React 路径**，
+  没有任何测试触达。写代码时把 filter 挂在了 Set 上（思维里还是数组链式调用），
+  语法检查、类型检查、单测三道门全部放行。
+- **修复**：Set 构造前先对数组 filter；正则字面量改 RegExp 构造器
+  （正则字面量里的转义歧义已两次浪费时间——`\\` 层级在字符串/字面量/宿主
+  三层之间数不清）。
+- **规则**：新增「点击才渲染」的 UI 块时，必须写一个**渲染级冒烟**——
+  用最小 React stub 把组件函数真跑一遍（h() 展开即抓 TypeError），
+  进 `verify:all`。单纯「文件能 build」不等于「点开不崩」。
