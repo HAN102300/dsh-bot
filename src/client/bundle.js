@@ -1643,11 +1643,12 @@ window.__ModuleLoader__.load({
                 const out = run.outputPreview || '';
                 const chars = out.length;
                 // 文件产物识别：输出中引用的本地文件路径（Windows 盘符 / ~/.dsh 常见落点）
-                const pathMatches = [
-                  ...new Set(
-                    (out.match(/([A-Za-z]:\\[^\s"]+\.[a-z0-9]{2,4})|(~\/\.dsh\/[^\s"]+\.[a-z0-9]{2,4})/gi) || []),
-                  ).filter((p) => /\.(md|txt|json|ya?ml|log|csv|html?|tgz|zip|png|jpe?g)$/i.test(p)),
-                ];
+                const FILE_EXT_RE = new RegExp("\\.(md|txt|json|ya?ml|log|csv|html?|tgz|zip|png|jpe?g)$", "i");
+                const FILE_PATH_RE = new RegExp("([A-Za-z]:\\\\[^\\s\"]+\\.[a-z0-9]{2,4})|(~\\/\\.dsh\\/[^\\s\"]+\\.[a-z0-9]{2,4})", "gi");
+                const pathMatches = [];
+                for (const p of out.match(FILE_PATH_RE) || []) {
+                  if (FILE_EXT_RE.test(p) && !pathMatches.includes(p)) pathMatches.push(p);
+                }
                 const truncated = out.includes('[已截断') || chars >= 50_000;
                 return h(
                   'div',
