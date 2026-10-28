@@ -1858,7 +1858,7 @@ window.__ModuleLoader__.load({
               }),
               h(ToggleRow, {
                 label: '仅异常时打扰',
-                hint: '开启后只有失败/部分成功/需要拍板才响；关闭则每次运行都通知',
+                hint: '开启后自动轮次只有失败/部分成功才响；手动点「执行」的成功结果始终会通知',
                 value: s.notifyOnlyOnDecision !== false,
                 onChange: (v) => patch('notifyOnlyOnDecision', v),
               }),
@@ -4090,10 +4090,10 @@ window.__ModuleLoader__.load({
                   const attention =
                     run.status !== 'success' ||
                     (run.goalAssessment?.needsHuman === true);
-                  if (settings.notifyOnlyOnDecision !== true && !attention) {
-                    // 全部提醒模式：成功也响
-                    fireNotification(b.name, run);
-                  } else if (attention) {
+                  // v0.3.1 体验修正：手动触发（用户点了「执行」在等结果）→ 成功也响；
+                  // 只有自动轮（goal/schedule）才按「仅异常时打扰」静默成功。
+                  const manualRun = run.trigger === 'manual';
+                  if (settings.notifyOnlyOnDecision !== true || attention || manualRun) {
                     fireNotification(b.name, run);
                   }
                 }
@@ -4145,6 +4145,8 @@ window.__ModuleLoader__.load({
     return { name: 'dsh-bot-client', inject, apply };
   },
 });
+
+
 
 
 
