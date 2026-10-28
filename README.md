@@ -75,6 +75,17 @@ node dev/gen-tools-doc.mjs   # 重新生成工具清单文档
 
 改动必须过 `verify:all`；工具数量与 HTTP 路由数量有注册断言（删了/漏了会红）。
 
+## 模型渠道建议
+
+| 渠道 | 适配状态 | 说明 |
+|---|---|---|
+| **deepseek-official / deepseek-account** | ✅ 推荐 | 验证最充分：文本协议 + 双轮回喂 + 流稳定性都打磨过 |
+| deepseek-web | ✅ 可用 | 免费网页渠道 |
+| 其他渠道（our-free-model / zcode / qoder / trae…） | ⚠️ 逐步优化 | 可能出现空回复或流中断；每个版本公告会注明本版优化了哪个渠道 |
+
+> **遇到「模型返回了空内容」？** 九成是渠道兼容性问题——先换 DeepSeek 系渠道试试。
+> 渠道兼容性矩阵（含逐渠道验证结果）见 [docs/ROADMAP-v0.3.md](./docs/ROADMAP-v0.3.md) v0.5.0 节。
+
 ## 诚实限制清单
 
 - **演习本身计费**：dry-run 拦截的是工具执行，模型调用是真实的
@@ -95,3 +106,4 @@ node dev/gen-tools-doc.mjs   # 重新生成工具清单文档
 ## License
 
 MIT
+

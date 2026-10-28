@@ -275,6 +275,10 @@ export function createLlmInvoker(ctx: any) {
     }
 
     let text = '';
+    /** R3b 流空闲计时器（try 外声明，catch 也要清） */
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    /** 流式工具调用累积器：key=chunk.index */
+    const streamingToolCalls = new Map<number, { id?: string; name?: string; args: string }>();
     let reasoning = '';
     let usage: any = undefined;
     const toolUses: ToolUseBlock[] = [];
@@ -289,12 +293,45 @@ export function createLlmInvoker(ctx: any) {
       messages,
       reasoningEffort: input.reasoningEffort,
     };
-    if (input.maxTokens !== undefined) options.maxTokens = input.maxTokens;
+    if (input.maxTokens !== undefined) {
+      options.maxTokens = input.maxTokens;
+    } else {
+      // ⭐ R3a（v0.3.1）：思考型模型在默认 maxTokens 下会把预算耗在思考上，
+      //    正文为空 → EMPTY_OUTPUT。未显式指定时按 provider 给足余量。
+      //    数值取「够思考 + 够完整报告」的经验值；小模型无碍（上限不是必达）。
+      const THINKING_DEFAULTS = [
+        { re: /deepseek-(?:v4|reasoner)|deepseek-flash/i, max: 16_384 },
+        { re: /glm|zcode/i, max: 16_384 },
+        { re: /kimi|moonshot/i, max: 16_384 },
+        { re: /qwen|qwen3/i, max: 16_384 },
+        { re: /o[1-9]|gpt-5|gpt-4\.|openai\//i, max: 16_384 },
+        { re: /claude|opus|sonnet|haiku/i, max: 16_384 },
+        { re: /free|openrouter/i, max: 8_192 },
+      ];
+      const hit = THINKING_DEFAULTS.find((t) => t.re.test(`${input.provider}/${input.model}`));
+      if (hit) options.maxTokens = hit.max;
+    }
     if (input.signal) options.signal = input.signal;
     if (input.tools?.length) options.tools = input.tools;
 
     try {
+      // ⭐ R3b（v0.3.1）：流「空闲」超时——流建立了但 90 秒无任何新 chunk 的
+      //    挂死场景（网络半开、适配器内部卡住）。注意是空闲超时而非总时长：
+      //    思考型模型合法长跑（16k tokens 数分钟）只要持续出 chunk 就不误杀。
+      //    实现：90s 计时器 + 每收到 chunk 重置；超时抛错交给 R1 重试兜底。
+      const IDLE_MS = 90_000;
+      const idleController = new AbortController();
+      const resetIdle = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => idleController.abort(new Error('stream idle > 90s')), IDLE_MS);
+      };
+      resetIdle();
+      const combined = options.signal
+        ? AbortSignal.any([options.signal, idleController.signal])
+        : idleController.signal;
+      options.signal = combined;
       for await (const chunk of llm.stream(options)) {
+        resetIdle();
         switch (chunk?.type) {
           case 'text-delta':
             text += chunk.text ?? '';
@@ -308,13 +345,30 @@ export function createLlmInvoker(ctx: any) {
           case 'finish':
             stopReason = chunk.stopReason ?? chunk.finishReason ?? chunk.reason;
             break;
+          case 'tool-call-delta': {
+            // ⭐ 流式工具调用增量（2026-10-28）：our-free-model/openrouter 等适配器
+            //    以增量块发原生 tool call，且可能不回传含完整块的 block-end。
+            //    之前把这类 chunk 丢进 oddChunks → 模型的回答被静默吞掉 → 空内容。
+            //    现按 dsh-llm 累积协议（index 分片、id/name/argumentsDelta 增量）
+            //    自行组装完整 tool-use。
+            const idx = Number(chunk.index ?? 0);
+            let partial = streamingToolCalls.get(idx);
+            if (!partial) {
+              partial = { id: undefined, name: undefined, args: '' };
+              streamingToolCalls.set(idx, partial);
+            }
+            if (typeof chunk.id === 'string') partial.id = chunk.id;
+            if (typeof chunk.name === 'string') partial.name = chunk.name;
+            if (typeof chunk.argumentsDelta === 'string') partial.args += chunk.argumentsDelta;
+            break;
+          }
           case 'block-end': {
             // 兜底：若增量缺失，从完整块补齐
             const block = chunk.block;
             if (block?.type === 'text' && !text) text = block.text ?? '';
             if (block?.type === 'reasoning' && !reasoning) reasoning = block.text ?? '';
             // ⭐ 工具协议：模型发起的工具调用以完整块到达
-            //    （块类型名做宽容兼容：tool_use / toolUse / tool_call）
+            //    （块类型名做宽容兼容：tool_use / toolUse / tool_call / tool-call）
             const tu = asToolUse(block);
             if (tu) toolUses.push(tu);
             break;
@@ -330,16 +384,32 @@ export function createLlmInvoker(ctx: any) {
           case 'block-delta':
             break;
           default: {
-            // 未知类型：记下来，别静默丢（工具协议的增量块可能落在这里）
+            // 未知类型：记下来，别静默丢（未登记的增量变体可能落在这里）
             if (chunk?.type) oddChunks.push(String(chunk.type));
             break;
           }
         }
       }
+      if (idleTimer) clearTimeout(idleTimer);
     } catch (e: any) {
+      if (idleTimer) clearTimeout(idleTimer);
       // 流式调用抛错（鉴权 / 网络 / 适配器）——保留原始信息
       const detail = describeLlmError(e);
       throw new Error(`模型调用失败（${input.provider}/${input.model}）：${detail}`);
+    }
+
+    // ⭐ 流式组装的 tool-use 兜底合并：若适配器只发了增量块、没有 block-end
+    //    完整块（或块类型名不在 asToolUse 认识的列表里），这里按累积结果补齐。
+    //    合并去重：block-end 路径已收集的同名调用不重复收。
+    if (streamingToolCalls.size > 0) {
+      for (const [, partial] of [...streamingToolCalls.entries()].sort((a, b) => a[0] - b[0])) {
+        if (!partial.name) continue; // 没有 name 的分片无法成调用
+        const args = sanitizeToolArgs(partial.args ? safeJsonParse(partial.args) : {});
+        const dupe = toolUses.some((t) => t.name === partial.name && JSON.stringify(t.input) === JSON.stringify(args));
+        if (!dupe) {
+          toolUses.push({ id: partial.id, name: partial.name, input: args });
+        }
+      }
     }
 
     // 有错误 chunk：优先报它，而不是让上层看到"空输出"
@@ -447,6 +517,14 @@ function asToolUse(block: any): ToolUseBlock | undefined {
  * JSON round-trip 一次即可重建为宿主接受的普通对象；
  * 参数本来就是模型产出的 JSON，round-trip 无损。
  */
+function safeJsonParse(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return s;
+  }
+}
+
 function sanitizeToolArgs(input: unknown): Record<string, unknown> {
   try {
     return JSON.parse(JSON.stringify(input ?? {})) as Record<string, unknown>;
@@ -588,3 +666,9 @@ function unwrapToolResult(res: any): unknown {
   }
   return res;
 }
+
+
+
+
+
+

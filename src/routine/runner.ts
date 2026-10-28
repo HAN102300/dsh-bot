@@ -490,6 +490,7 @@ export class RoutineRunner {
       let attempt = 0;
       let lastError: unknown;
 
+      // ⭐ B6（v0.3.1）retry 分级：不可恢复错误重试必然还是失败，纯烧钱。
       while (attempt < maxAttempts) {
         attempt++;
         try {
@@ -498,10 +499,18 @@ export class RoutineRunner {
           break;
         } catch (e) {
           lastError = e;
-          if (attempt < maxAttempts) {
-            if (backoffMs > 0) await sleep(backoffMs);
-            continue;
-          }
+          // 不可恢复错误集合：凭据缺失/工具不存在/配置错误——重试无意义
+          const NON_RETRYABLE = new Set([
+            'UNKNOWN_TOOL',
+            'INVALID_ARGS',
+            'UNSUPPORTED_STEP',
+            'BOT_NOT_FOUND',
+            'INVALID_ROUTINE',
+            'ASSERT_FAILED',
+          ]);
+          if (NON_RETRYABLE.has((e as any)?.code) || attempt >= maxAttempts) break;
+          if (backoffMs > 0) await sleep(backoffMs);
+          continue;
         }
       }
 
@@ -783,8 +792,14 @@ export class RoutineRunner {
     let finalText = '';
     let rounds = 0;
     let endedByLimit = false;
+    // ⭐ R1 失败自动重试（v0.3.1）：EMPTY_OUTPUT 时整体重跑一次
+    let retried = false;
+    let retrySignal = false;
 
     try {
+      // attempt 循环：正常只跑一轮；EMPTY_OUTPUT 时重试信号置位后重跑一次。
+      // for(;;) + break 的写法避免 while(retried) 的布尔纠缠。
+      for (let attempt = 0; ; attempt++) {
       // 运行时模型兜底：绑定的 provider 在当前环境不可用时切换到可运行项
       let effectiveModel = {
         provider: bot.model.provider,
@@ -968,6 +983,33 @@ export class RoutineRunner {
         };
       }
 
+      // ⭐ R1 失败自动重试（v0.3.1）：EMPTY_OUTPUT / 流中断类失败自动重试一次。
+      //    为什么只重试一次：每次重试成本翻倍，一次已能把瞬时性故障
+      //    （流中断、偶发空完成）的大多数兜回来；连续失败说明是系统性问题。
+      //    为什么包在 try 里重跑整段循环：失败可能发生在任何一轮，重跑
+      //    等价于「重新开始这次任务」，语义最干净。
+      if (
+        record.status === 'failed' &&
+        record.error?.code === 'EMPTY_OUTPUT' &&
+        !retried &&
+        !flags.dryRun
+      ) {
+        // ⭐ R1 重试：标记后抛出内部信号，由外层 attempt 循环重新执行整段。
+        //    （continue 在这里只会回到 for-rounds 循环，语义不对。）
+        retried = true;
+        record.steps.push({
+          index: record.steps.length,
+          kind: 'llm',
+          name: 'retry',
+          durationMs: 0,
+          result: { output: '' },
+          args: { note: '检测到空输出，自动重试一次（v0.3.1 R1）' },
+        } as StepRecord);
+        record.error = undefined;
+        record.status = 'success';
+        retrySignal = true;
+      }
+
       stepRecord.result = { output: finalText };
       stepRecord.args = {
         prompt: task,
@@ -975,6 +1017,21 @@ export class RoutineRunner {
         toolSchemas: toolSchemas.length,
       };
       if (record.error) stepRecord.error = record.error;
+
+      // ⭐ R1：重试信号置位 → 重置状态后重跑 attempt 循环（整体重来一次）
+      if (retrySignal) {
+        retrySignal = false;
+        record.status = 'success';
+        record.error = undefined;
+        finalText = '';
+        rounds = 0;
+        endedByLimit = false;
+        convo = undefined; // 重试从干净上下文开始（单消息回喂对齐）
+        stepRecord.result = { output: '' };
+        continue;
+      }
+      break; // 正常结束（成功或非可重试失败）
+      }
     } catch (e: any) {
       record.status =
         e?.code === 'BUDGET_EXCEEDED' ? 'budget_exceeded' : 'failed';

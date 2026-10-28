@@ -812,12 +812,33 @@ export function makeBotApiRoutes(
           }
           const bot = await service.get(botId);
           const runs = await service.listRuns(botId, limit);
+          // ⭐ R4（v0.3.1）：运行健康分——近 N 轮的成功率/费用/失败分布，
+          //    用户一眼判断「这个 Bot 现在靠谱吗」。
+          const recent = runs.slice(0, 10);
+          const ok = recent.filter((r: any) => r.status === 'success').length;
+          const failedRuns = recent.filter((r: any) => r.status === 'failed');
+          const costSum = recent.reduce((s: number, r: any) => s + (Number(r.usage?.costCny) || 0), 0);
+          const retryCount = recent.filter((r: any) =>
+            (r.steps ?? []).some((s: any) => s.name === 'retry'),
+          ).length;
+          const health = {
+            sample: recent.length,
+            successRate: recent.length ? ok / recent.length : null,
+            failuresByCode: failedRuns.reduce((m: Record<string, number>, r: any) => {
+              const code = r.error?.code ?? 'UNKNOWN';
+              m[code] = (m[code] ?? 0) + 1;
+              return m;
+            }, {}),
+            avgCostCny: recent.length ? costSum / recent.length : null,
+            retryUsed: retryCount,
+          };
           // 每轮补上当轮使用的模型（runs 记录本身不存，取 identity 当前值 +
           // 运行记录的 modelFallback 提示，足以回答"这次是谁在跑"）
           writeJson(res, 200, {
             ok: true,
             value: {
               bot: { id: bot.id, name: bot.name, model: bot.model },
+              health,
               runs: runs.map((r: any) => ({
                 id: r.id,
                 trigger: r.trigger,
@@ -833,6 +854,7 @@ export function makeBotApiRoutes(
                     ? r.steps[0].result.output.slice(0, 50_000)
                     : undefined,
                 stepCount: r.steps?.length ?? 0,
+                steps: (r.steps ?? []).map((s: any) => ({ kind: s.kind, name: s.name })),
                 toolSteps: (r.steps ?? [])
                   .filter((s: any) => s.kind === 'tool')
                   .map((s: any) => ({ name: s.name, durationMs: s.durationMs, blocked: !!s.blocked, error: s.error })),
@@ -1219,4 +1241,7 @@ async function archiveGoalFor(
   await service.clearGoal(botId);
   return archive;
 }
+
+
+
 

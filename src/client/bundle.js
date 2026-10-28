@@ -902,6 +902,21 @@ window.__ModuleLoader__.load({
                           ? `provider「${provider || '未选'}」没有报告可用模型，请手填 model。`
                           : '下拉里是这个环境真实可用的选项。',
                   ),
+                  // ⭐ 渠道适配提示（v0.3.1）：本插件的工具循环协议对 DeepSeek
+                  //    系适配器打磨最充分；其他渠道可能存在空内容/流中断等
+                  //    兼容性问题（详见 docs 渠道能力表，v0.5.0 起系统性支持）。
+                  h(
+                    'div',
+                    {
+                      style: {
+                        fontSize: 10, color: WARN, marginTop: 5, lineHeight: 1.7,
+                        padding: '5px 8px', borderRadius: R_SM, background: BG_L3,
+                      },
+                    },
+                    '💡 建议：优先选 deepseek-official / deepseek-account 渠道——',
+                    h('br'),
+                    '本插件对 DeepSeek 系模型适配与验证最充分，其他渠道（如 our-free-model / zcode 等）可能出现空回复或流中断，正在逐步优化中（每版公告会注明）。',
+                  ),
                 )
               : null,
 
@@ -1300,14 +1315,29 @@ window.__ModuleLoader__.load({
                     );
                     const rj = await r.json();
                     if (!rj?.ok) return [];
-                    return (rj.value?.runs ?? []).map((run) => ({ ...run, botName: b.name, botId: b.id }));
+                    return {
+                      runs: (rj.value?.runs ?? []).map((run) => ({ ...run, botName: b.name, botId: b.id })),
+                      health: rj.value?.health ?? null,
+                      botName: b.name,
+                    };
                   } catch {
                     return [];
                   }
                 }),
               );
-              const all = results.flat().sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-              setData({ bots, runs: all.slice(0, 30) });
+              const all = results
+                .flatMap((r) => r.runs)
+                .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+              const healths = results.filter((r) => r.health);
+              setData({
+                bots,
+                runs: all.slice(0, 30),
+                healths,
+                avgSuccessRate:
+                  healths.length > 0
+                    ? healths.reduce((s, r) => s + (r.health.successRate ?? 0), 0) / healths.length
+                    : null,
+              });
               setErr('');
             } catch (e) {
               setErr(String(e?.message ?? e));
@@ -1438,6 +1468,20 @@ window.__ModuleLoader__.load({
                 modeBtn('compact', '滚动'),
               ),
               h('div', { style: { flex: 1 } }),
+              (() => {
+                const rate = data.avgSuccessRate;
+                if (rate === null || rate === undefined) return null;
+                const pct = Math.round(rate * 100);
+                const tone = pct >= 90 ? OK : pct >= 70 ? WARN : ERR;
+                return h(
+                  'span',
+                  {
+                    title: '近 10 轮成功率（各 Bot 平均）——低于 70% 建议换模型或检查数据源',
+                    style: { fontSize: 10, color: tone, fontWeight: 600, marginRight: 6 },
+                  },
+                  `健康 ${pct}%`,
+                );
+              })(),
               h('div', { style: { fontSize: 10, color: LABEL_3 } }, `共 ${data.runs.length} 条`),
             ),
             // ---- 列表主体 ----
@@ -3978,14 +4022,17 @@ window.__ModuleLoader__.load({
           };
 
           const fireNotification = (botName, run) => {
+            const retried = Array.isArray(run.steps)
+              ? run.steps.some((s) => s.name === 'retry')
+              : false;
             const title =
               run.status === 'success'
-                ? `✅ ${botName}：运行完成`
+                ? `✅ ${botName}：运行完成${retried ? '（已自动重试）' : ''}`
                 : run.status === 'partial'
                   ? `🟡 ${botName}：部分成功`
                   : run.status === 'budget_exceeded'
                     ? `🛑 ${botName}：预算熔断`
-                    : `❌ ${botName}：运行失败`;
+                    : `❌ ${botName}：运行失败${retried ? '（重试后仍失败）' : '（下轮定时将自动重试）'}`;
             const cost = run.usage
               ? run.usage.costKind === 'free'
                 ? '免费'
@@ -3993,7 +4040,8 @@ window.__ModuleLoader__.load({
                   ? `¥${run.usage.costCny.toFixed(4)}`
                   : '费用未知'
               : '—';
-            const body = `${new Date(run.startedAt).toLocaleTimeString('zh-CN')} · ${cost}` +
+            // runId 前 8 位：用户报问题时可对齐具体轮次（v0.3.1 R2）
+            const body = `${new Date(run.startedAt).toLocaleTimeString('zh-CN')} · ${cost} · #${String(run.id).slice(0, 8)}` +
               (run.error?.message ? ` · ${String(run.error.message).slice(0, 80)}` : '') +
               (run.outputPreview ? `\n${run.outputPreview.slice(0, 100)}` : '');
             try {
@@ -4097,4 +4145,6 @@ window.__ModuleLoader__.load({
     return { name: 'dsh-bot-client', inject, apply };
   },
 });
+
+
 
