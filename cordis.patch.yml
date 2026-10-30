@@ -22,7 +22,7 @@
 
 - insert:
     - id: dsh-bot-core
-      name: dsh-bot
+      name: '@zifeng1023/dsh-bot'
       config:
         homeDir: '~/.dsh/bot'
         defaultProvider: deepseek

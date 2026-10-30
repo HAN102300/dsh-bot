@@ -1,6 +1,6 @@
 {
   "name": "@zifeng1023/dsh-bot",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "常驻 AI 队友：记得住、守得住、收得回。默认 dry-run 演习、执行前自动快照、可一键回滚，并支持错峰调度省钱。",
   "repository": {
     "type": "git",
@@ -31,7 +31,7 @@
     "assets"
   ],
   "engines": {
-    "dsh": ">=0.2.0 <0.3.0"
+    "dsh": ">=0.2.0-rc.1 <0.3.0-0 || >=0.2.1-rc.1 <0.3.0-0"
   },
   "dsh": {
     "bundle": {
@@ -60,7 +60,7 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.1 <0.3.0-0 || >=0.2.0 <0.4.0"
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.1 <0.3.0-0 || >=0.2.1-rc.1 <0.3.0-0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
