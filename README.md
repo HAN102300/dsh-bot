@@ -99,7 +99,7 @@ node dev/gen-tools-doc.mjs   # 重新生成工具清单文档
 - [立意与竞品](./docs/POSITIONING.md) — 为什么做「可托付」这一层
 - [技术设计](./docs/DESIGN.md)
 - [工具清单](./docs/TOOLS.md)（自动生成）
-- [路线图](./docs/ROADMAP-v0.3.md) — 含版本规划与真机教训
+- [宿主契约](./docs/HOST-CONTRACT.md) — 宿主实际怎么工作，以及踩过的七个坑
 - [经验教训](./docs/LESSONS.md) — 从事故文档蒸馏的工程原则
 
 ## License
