@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { apply } from '../../src/index.js';
 
-/** 全部 24 个工具，按注册模块分组（与 src/tools/*.ts 一一对应） */
+/** 全部 25 个工具，按注册模块分组（与 src/tools/*.ts 一一对应） */
 const EXPECTED_TOOLS = [
   // tools/bot.ts
   'bot_create', 'bot_list', 'bot_show', 'bot_update', 'bot_delete',
@@ -34,6 +34,8 @@ const EXPECTED_TOOLS = [
   'bot_schedule', 'bot_schedules', 'bot_heartbeat',
   // tools/http.ts（通用只读联网抓取）
   'http_get',
+  // tools/doctor.ts（只读自检）
+  'bot_doctor',
 ] as const;
 
 interface FakeHost {
@@ -85,7 +87,7 @@ describe('插件加载完整性', () => {
     const host = makeFakeHost();
     apply(host.ctx as never, { homeDir });
 
-    expect(host.routePaths.length).toBe(25);
+    expect(host.routePaths.length).toBe(26);
     expect(host.routePaths.every((p) => p.startsWith('/_dsh-bot'))).toBe(true);
     // 核心端点抽查：面板的每个关键操作都有后端
     for (const must of [

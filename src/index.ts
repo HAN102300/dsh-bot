@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { Context } from '@deepseek-ai/cordis';
 
@@ -25,6 +26,8 @@ import { registerHttpTools } from './tools/http.js';
 import { RoutineRunner, type LlmInvoker } from './routine/runner.js';
 import { createLlmInvoker, createToolInvoker, lastToolProbeMethod } from './llm/bridge.js';
 import { makeBotApiRoutes } from './api/routes.js';
+import { buildDoctorReport } from './doctor.js';
+import { registerDoctorTool } from './tools/doctor.js';
 import type { BotPluginConfig, ReasoningEffort } from './types.js';
 
 export const name = 'dsh-bot';
@@ -656,6 +659,36 @@ function applyInner(ctx: Context, rawConfig?: Partial<BotPluginConfig>): void {
 
   const llmInvoker = llmDispatch;
 
+  // ---------- 诊断聚合（v0.3.5 刀 2） ----------
+  // 与面板「诊断」块、bot_doctor 工具共用同一份聚合结果。
+  const PLUGIN_VERSION = pluginVersion();
+  const EXPECTED_TOOL_COUNT = 25;
+  (diag as any).pluginVersion = PLUGIN_VERSION;
+  const doctorReport = () =>
+    buildDoctorReport({
+      homeDir: service.homeDir,
+      version: PLUGIN_VERSION,
+      expectedTools: EXPECTED_TOOL_COUNT,
+      modelProbe: async () => {
+        try {
+          const providers = await listAvailableModels(ctx as any);
+          const names = (Array.isArray(providers) ? providers : [])
+            .map((x: any) => x?.provider)
+            .filter((x: any) => typeof x === 'string' && x);
+          if (!names.length) {
+            return {
+              level: 'error' as const,
+              detail: '没有可用的模型 provider',
+              hint: '检查 DSH 的模型渠道配置；没有可用渠道时 Bot 执行会返回空结果。',
+            };
+          }
+          return { level: 'ok' as const, detail: `可用 provider：${names.join(', ')}` };
+        } catch (e: any) {
+          return { level: 'warn' as const, detail: `探测失败：${e?.message ?? e}` };
+        }
+      },
+    });
+
   // ---------- 注册工具（带诊断） ----------
   const regErrors: string[] = [];
   let regCount = 0;
@@ -700,6 +733,8 @@ function applyInner(ctx: Context, rawConfig?: Partial<BotPluginConfig>): void {
     registerScheduleTools(fakeCtx, service);
     // 通用只读 HTTP GET 工具：所有 Bot 都能联网抓数据（副作用 none，默认放行）
     registerHttpTools(fakeCtx);
+    // 只读自检：四层状态聚合，与面板「诊断」块同源
+    registerDoctorTool(fakeCtx, { report: doctorReport });
     registerDraftTool(fakeCtx, {
       service,
       llm: llmInvoker,
@@ -838,7 +873,9 @@ function applyInner(ctx: Context, rawConfig?: Partial<BotPluginConfig>): void {
       saveSettings: async (botId: string | undefined, patch: any) => {
         if (botId) return settingsStore.setForBot(botId, patch);
         return settingsStore.setGlobal(patch);
-      },    });
+      },
+      doctor: doctorReport,
+    });
 
     // ⚠️ 关键：不能用 ctx.inject() —— 服务不存在时回调永不执行且无报错。
     // 直接检查 ctx.webServer 是否可访问（它已在 inject 声明里，框架保证就绪）。
@@ -877,6 +914,18 @@ function applyInner(ctx: Context, rawConfig?: Partial<BotPluginConfig>): void {
   (ctx as any).logger?.info?.(
     `[dsh-bot] 已加载：注册 ${regCount} 个工具，数据目录 ${service.homeDir}`,
   );
+}
+
+/** 本插件构建版本：优先环境变量，其次读 package.json（绕开打包路径差异）。 */
+function pluginVersion(): string {
+  const fromEnv = process.env.DSH_BOT_VERSION;
+  if (fromEnv) return fromEnv;
+  try {
+    const pkgPath = fileURLToPath(new URL('../package.json', import.meta.url));
+    return JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
+  } catch {
+    return 'unknown';
+  }
 }
 
 export {

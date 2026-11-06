@@ -5,6 +5,7 @@
  * 复用官方适配器，因此自动获得 reasoning 回放等能力。
  */
 
+import { toZonedDate } from '../scheduler/cron.js';
 import type { RunUsage } from '../types.js';
 
 /** 一次调用的输入 */
@@ -107,7 +108,7 @@ const FREE_PATTERNS: RegExp[] = [
  * 高峰价是空闲价的 2 倍，所以这个判断直接影响账单。
  */
 export function isPeakHour(now: Date = new Date()): boolean {
-  const bj = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+  const bj = toZonedDate(now, 'Asia/Shanghai');
   const day = bj.getDay();
   if (day === 0 || day === 6) return false;
   const minutes = bj.getHours() * 60 + bj.getMinutes();
@@ -635,32 +636,49 @@ export function createToolInvoker(ctx: any) {
         const res = await tools.call(name, args, signal ? { signal } : undefined);
         return unwrapToolResult(res);
       }
-      // 形态 B：ToolRuntime.execute(exec) —— 单对象签名 { name, arguments }。
-      // ⚠️ 真机教训：曾按位置参数 (name, args, opts) 调用 execute，
-      // 导致 exec="http_get"、exec.arguments=undefined，
-      // 在 snapshotJsonValue 处抛 "tool execution arguments must be
-      // losslessly JSON-serializable"。宿主 ToolRuntime.execute 的
-      // 真实签名是单对象（见 dsh-tools lib：async execute(exec)）。
+      // 形态 B：ToolRuntime.execute(exec)
+      //
+      // 宿主 0.2.1 与 0.2.2 的 execute 签名不同（见 docs/HOST-CONTRACT.md 契约 2）：
+      //   0.2.1  execute({ name, arguments, signal })                      → ToolExecutionResult
+      //   0.2.2+ execute({ calls: [{ type:'tool-call', id, name, arguments: JSON }], signal })
+      //          → { results: [{ callId, result }] }（arguments 是 JSON 字符串）
+      //
+      // 策略：批量优先、单次回退。批量失败后回退旧签名；两者都失败时抛批量错误——
+      // 因为 0.2.2 上的失败才是真业务失败，旧签名失败只能说明宿主不认批量。
       if (typeof tools?.execute === 'function') {
-        // ⚠️ ToolRuntime.createExecution 无条件读取 exec.signal.aborted，
-        // signal 缺省会抛 "Cannot read properties of undefined (reading 'aborted')"。
-        // 调用方没有 signal 时必须给一个默认的（永不中止）signal。
-        const exec: Record<string, unknown> = {
-          name,
-          arguments: args ?? {},
-          signal: signal ?? new AbortController().signal,
-        };
-        const res = await tools.execute(exec);
-        return unwrapToolResult(res);
+        // ⚠️ createExecution 无条件读 exec.signal.aborted，signal 缺省必须补一个永不中止的。
+        const sig = signal ?? new AbortController().signal;
+        try {
+          const batch: any = await tools.execute({
+            calls: [
+              {
+                type: 'tool-call',
+                id: `dsh-bot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                name,
+                arguments: JSON.stringify(args ?? {}),
+              },
+            ],
+            signal: sig,
+          });
+          return unwrapToolResult(Array.isArray(batch?.results) ? batch.results[0]?.result : batch);
+        } catch (batchErr) {
+          try {
+            const legacy: any = await tools.execute({ name, arguments: args ?? {}, signal: sig });
+            return unwrapToolResult(legacy);
+          } catch {
+            throw batchErr;
+          }
+        }
       }
       throw new Error(`当前 DSH 运行环境不支持程序化调用工具：${name}`);
     },
   };
 }
-
 /** 工具返回可能是 { content, value } 形态，尽量取 value */
 function unwrapToolResult(res: any): unknown {
   if (res && typeof res === 'object') {
+    // 批量外壳：{ results: [{ callId, result }] }
+    if (Array.isArray(res.results)) return unwrapToolResult(res.results[0]?.result);
     if ('value' in res && res.value !== undefined) return res.value;
     if ('content' in res) return res.content;
   }

@@ -9,6 +9,7 @@
  *   单 Bot：bots/<id>/settings.json（覆盖全局）
  */
 
+import { toZonedDate } from './scheduler/cron.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -217,7 +218,7 @@ export function inQuietHours(
   };
 
   // 用北京时间判断（与调度器一致）
-  const bj = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+  const bj = toZonedDate(now, 'Asia/Shanghai');
   const cur = bj.getHours() * 60 + bj.getMinutes();
   const start = toMin(quiet.start);
   const end = toMin(quiet.end);

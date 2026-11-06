@@ -1581,6 +1581,33 @@ test('两次不同任务的 system prompt 公共前缀占比 > 60%', () => {
 
 ---
 
+## 16. 诊断数据与自检面（v0.3.5 设计补齐）
+
+> 这一节是 0.3.5 新增的「可诊断性」设计。原则：**数据早就在写，只是从来没有入口读。**
+
+### 16.1 三个事实文件
+
+| 文件 | 写入方 | 内容 | 诊断用途 |
+|---|---|---|---|
+| `~/.dsh/bot/.plugin-loaded.json` | 宿主侧 `apply()` | 工具注册数、`registerErrors`、`llmReady`、`ctxKeys`、是否挂上 webServer / effect | 判断「宿主侧到底起没起来」 |
+| `~/.dsh/bot/.client-status.json` | 浏览器端 `report()` → `POST /_dsh-bot/client-status` | `version`、`status`、`detail`、时间（滚动历史） | 判断「面板没出现是没加载，还是加载后抛错」 |
+| `~/.dsh/bot/.plugin-crash.json` | `apply()` 的最外层 catch | 时间、错误 message、栈摘要 | 判断「上次启动是不是崩过」 |
+
+### 16.2 聚合方式
+
+`GET /_dsh-bot/doctor` 是一个**只读、永不失败**的端点：逐项独立 `try/catch`，缺文件返回 `null` +「未记录」，整体始终 `200 {ok:true}`。
+四项检查：宿主注册（期望工具数 vs 实际）、client 版本一致性（`__BOT_BUILD__` 注入的构建版本 vs 当前 package 版本）、崩溃记录、模型可用性（`resolveRunnableModel` 现算）。
+每项输出 `ok / warn / error` + 一句「下一步做什么」。同一份结果既给 HTTP，也给工具 `bot_doctor`（只读、副作用表登记 `none`）。
+
+### 16.3 隐私边界
+
+诊断只读**计数、时间、错误码、message 前 200 字**；不读记忆正文、不读运行输出全文、不读工作区文件内容。
+「复制诊断」产出纯文本，用户可肉眼检查后再贴 issue。
+
+### 16.4 与 UI 的关系
+
+设置页 Bot 区的「诊断」折叠块只消费聚合结果，不自己读文件；块内全部 `try/catch`，任何异常降级成一行「诊断不可用」而不是让设置页整块崩。
+
 ## 附录 A：完整代码骨架
 
 ### A.1 插件入口 `src/index.ts`

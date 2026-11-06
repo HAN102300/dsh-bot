@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,54 +44,93 @@ if (!pkg.dsh?.client) {
 }
 console.log(`✅ dsh.client = ${JSON.stringify(pkg.dsh.client)}`);
 
-// 4. 执行 bundle，检查 id
+// 4. 源码与产物一致性（防「改了源码忘了 build」）
+const srcPath = path.join(root, 'src', 'client', 'bundle.js');
+const srcRaw = fs.readFileSync(srcPath, 'utf8');
+if (!srcRaw.includes('__BOT_BUILD__')) {
+  console.log('❌ src/client/bundle.js 缺少 __BOT_BUILD__ 占位符');
+  process.exit(1);
+}
+const expected = srcRaw.replaceAll('__BOT_BUILD__', pkg.version);
 const code = fs.readFileSync(clientPath, 'utf8');
-const registrations = [];
-const sandbox = {
-  window: {
-    __ModuleLoader__: {
-      load: (def) => {
-        // 模拟 DSH 的重复注册检测
-        const existing = registrations.find((r) => r.id === def.id);
-        if (existing) {
-          throw new Error(
-            `client-modules: duplicate factory registration for "${def.id}"`,
-          );
-        }
-        registrations.push(def);
-      },
-    },
-  },
+const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
+if (sha256(expected) !== sha256(code)) {
+  console.log('❌ lib/client.js 与 src/client/bundle.js 不一致：改完源码忘了 npm run build？');
+  process.exit(1);
+}
+if (code.includes('__BOT_BUILD__')) {
+  console.log('❌ lib/client.js 里仍有 __BOT_BUILD__：构建时没有替换版本号');
+  process.exit(1);
+}
+console.log(`✅ 产物与源码一致，构建版本已注入（${pkg.version}）`);
+
+// 5. 结构断言：整个文件必须包在 IIFE 里
+const firstCodeLine = code
+  .replace(/^\s*\/\*[\s\S]*?\*\/\s*/, '')
+  .trimStart();
+if (!firstCodeLine.startsWith('(function')) {
+  console.log(`❌ 首个非注释语句不是 IIFE：${firstCodeLine.slice(0, 40)}…`);
+  process.exit(1);
+}
+if (!/\}\)\s*\(\s*\)\s*;?\s*$/.test(code.trimEnd())) {
+  console.log('❌ 文件末尾不是 })(); —— IIFE 没有闭合');
+  process.exit(1);
+}
+console.log('✅ 结构：整文件包在 IIFE 中');
+
+// 6. 幂等断言：宽容 loader 在同一 context 连跑两次都必须成功
+//    （0.3.4 的「BG_BASE already declared」就死在这一步）
+const makeSandbox = (load) => ({
+  window: { __ModuleLoader__: { load } },
   console,
   URLSearchParams,
-  // client 会注入 <style>，需要 document
   document: {
     createElement: () => ({ setAttribute() {}, textContent: '', style: {} }),
     head: { appendChild() {} },
   },
   fetch: async () => ({ ok: true, json: async () => ({ ok: true, value: {} }) }),
-};
-vm.createContext(sandbox);
-
-let doubled = false;
+});
+const tolerant = makeSandbox(() => {});
+vm.createContext(tolerant);
 try {
-  vm.runInContext(code, sandbox, { filename: 'client.js' });
-  // 执行第二次，模拟"bundle 被执行两次"
-  try {
-    vm.runInContext(code, sandbox, { filename: 'client.js#2' });
-  } catch (e) {
-    doubled = true;
-  }
-} catch (e) {
-  console.log('❌ 执行失败:', e.message);
+  vm.runInContext(code, tolerant, { filename: 'client.js' });
+  vm.runInContext(code, tolerant, { filename: 'client.js#2' });
+} catch (err) {
+  console.log('❌ 幂等失败：同一 context 第二次执行抛错 ——', err.message);
   process.exit(1);
 }
+console.log('✅ 幂等：同一 context 连跑两次均成功（无全局词法冲突）');
 
+// 7. 重复注册断言：严格 loader 第二次必须抛 duplicate，且只注册一次
+const registrations = [];
+const strict = makeSandbox((def) => {
+  if (registrations.some((r) => r.id === def.id)) {
+    throw new Error(`client-modules: duplicate factory registration for "${def.id}"`);
+  }
+  registrations.push(def);
+});
+vm.createContext(strict);
+let doubled = false;
+try {
+  vm.runInContext(code, strict, { filename: 'client.js' });
+  try {
+    vm.runInContext(code, strict, { filename: 'client.js#2' });
+  } catch {
+    doubled = true;
+  }
+} catch (err) {
+  console.log('❌ 执行失败:', err.message);
+  process.exit(1);
+}
+if (!doubled) {
+  console.log('❌ 第二次执行没有触发 duplicate —— 重复注册检测失效');
+  process.exit(1);
+}
 if (registrations.length !== 1) {
   console.log(`❌ 注册了 ${registrations.length} 次，应只注册 1 次`);
   process.exit(1);
 }
-console.log('✅ 只注册一次（重复执行会抛 duplicate 错误，符合预期）');
+console.log('✅ 只注册一次（严格 loader 第二次抛 duplicate，符合预期）');
 
 const def = registrations[0];
 if (def.id !== pkg.name) {

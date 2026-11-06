@@ -67,6 +67,7 @@ const groups = [
   ['bot_schedules', '调度'],
   ['bot_heartbeat', '调度'],
   ['http_get', '通用能力'],
+  ['bot_doctor', '诊断'],
 ];
 
 const known = new Map(groups);

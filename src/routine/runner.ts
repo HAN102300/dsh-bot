@@ -95,31 +95,74 @@ const MAX_TOOL_ROUNDS = 8;
  * 识别规则：任何围栏代码块，内容是 JSON 且含字符串字段 tool/name
  * （工具名不允许空白）。解析成功的块从总结文本中剥除。
  */
-export function parseToolCallMarkers(
-  text: string,
-): { calls: Array<{ name: string; args: unknown }>; cleaned: string } {
+export function parseToolCallMarkers(text: string): {
+  calls: Array<{ name: string; args: unknown }>;
+  cleaned: string;
+  /** 有工具意图（块里出现 tool/name 键）但一个调用都没解析出来的块数 */
+  unparsed: number;
+} {
   const calls: Array<{ name: string; args: unknown }> = [];
+  let unparsed = 0;
+
   const cleaned = text
-    .replace(/```[\w-]*[ \t]*\r?\n([\s\S]*?)```/g, (full, body: string) => {
-      let obj: unknown;
-      try {
-        obj = JSON.parse(body.trim());
-      } catch {
-        return full; // 不是 JSON，留给用户看
+    .replace(/\`\`\`[\w-]*[ \t]*\r?\n([\s\S]*?)\`\`\`/g, (full, body: string) => {
+      const trimmed = String(body).trim();
+      if (!trimmed) return full;
+
+      // 形态 1：整块就是一个 JSON（对象或数组）——0.2.x 的约定
+      const whole = tryParseJson(trimmed);
+      if (whole.ok) {
+        const items = Array.isArray(whole.value) ? whole.value : [whole.value];
+        const taken = items.map((o) => pushCall(o, calls)).filter(Boolean).length;
+        if (taken > 0) return '';
+        return full;
       }
-      if (!obj || typeof obj !== 'object') return full;
-      const o = obj as Record<string, unknown>;
-      const rawName =
-        typeof o.tool === 'string' ? o.tool : typeof o.name === 'string' ? o.name : undefined;
-      if (!rawName || /\s/.test(rawName)) return full;
-      calls.push({
-        name: rawName,
-        args: (o.args ?? o.input ?? o.arguments ?? {}) as unknown,
-      });
-      return '';
+
+      // 形态 2：JSON Lines —— 一行一个对象（0.3.4 真实故障：模型把 4 个调用
+      // 塞进同一个块，整块 JSON.parse 失败后 4 个调用被无声丢弃，运行还记 success）
+      const lineItems: unknown[] = [];
+      for (const line of trimmed.split(/\r?\n/)) {
+        const s = line.trim().replace(/,$/, '');
+        if (!s) continue;
+        const one = tryParseJson(s);
+        if (!one.ok) {
+          lineItems.length = 0;
+          break;
+        }
+        if (Array.isArray(one.value)) lineItems.push(...one.value);
+        else lineItems.push(one.value);
+      }
+      const takenLines = lineItems.map((o) => pushCall(o, calls)).filter(Boolean).length;
+      if (takenLines > 0) return '';
+
+      if (looksLikeToolCall(trimmed)) unparsed++;
+      return full;
     })
     .trim();
-  return { calls, cleaned };
+
+  return { calls, cleaned, unparsed };
+}
+
+function tryParseJson(s: string): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: JSON.parse(s) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function pushCall(obj: unknown, out: Array<{ name: string; args: unknown }>): boolean {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  const o = obj as Record<string, unknown>;
+  const name =
+    typeof o.tool === 'string' ? o.tool : typeof o.name === 'string' ? o.name : undefined;
+  if (!name || /\s/.test(name)) return false;
+  out.push({ name, args: (o.args ?? o.input ?? o.arguments ?? {}) as unknown });
+  return true;
+}
+
+function looksLikeToolCall(body: string): boolean {
+  return /"tool"\s*:/.test(body) || /"name"\s*:/.test(body);
 }
 
 /** 把工具目录渲染进系统提示（每行截断，防 prompt 失控） */
@@ -847,6 +890,8 @@ export class RoutineRunner {
         const native = out.toolUses ?? [];
         let uses: Array<{ id?: string; name: string; input: unknown }>;
         let cleanedText: string;
+        /** 本轮「看起来有工具调用、但解析器没认出任何调用」的块数 */
+        let unparsedBlocks = 0;
 
         if (native.length > 0) {
           // 原生工具协议（适配器真支持时）
@@ -857,9 +902,21 @@ export class RoutineRunner {
           const parsed = parseToolCallMarkers(rawText);
           uses = parsed.calls.map((c) => ({ name: c.name, input: c.args }));
           cleanedText = parsed.cleaned;
+          unparsedBlocks = parsed.unparsed;
         }
 
         if (uses.length === 0) {
+          // ⭐ 有工具意图却没执行 = 失败，不能记 success（0.3.4 真实事故：
+          //    模型把多个调用写进一个 ```tool 块，整块 JSON.parse 失败后被无声丢弃）
+          if (unparsedBlocks > 0) {
+            record.status = 'failed';
+            record.error = {
+              code: 'UNPARSED_TOOL_CALL',
+              message:
+                '模型产出了工具块的语法，但解析器没有认出任何调用，本轮实际什么都没执行。' +
+                '常见原因：一个代码块里写了多个 JSON 对象，或 JSON 非法。',
+            };
+          }
           finalText = cleanedText;
           break;
         }

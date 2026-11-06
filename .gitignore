@@ -8,6 +8,7 @@ dist/
 docs/ROADMAP*.md
 docs/BACKLOG*.md
 docs/RELEASES*.md
+docs/PLAN*.md
 docs/archive/
 *.bundle
 *.tgz

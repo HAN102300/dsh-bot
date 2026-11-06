@@ -20,6 +20,9 @@
 (function () {
   'use strict';
 
+  // 构建时由 tsdown 替换为 package.json.version（见 tsdown.config.ts）
+  const BOT_BUILD = '__BOT_BUILD__';
+
 // ============================================================
 // 设计令牌
 // ============================================================
@@ -477,7 +480,7 @@ function report(status, detail) {
     fetch('/_dsh-bot/client-status', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ status, detail: detail ?? null, at: new Date().toISOString() }),
+      body: JSON.stringify({ status, detail: detail ?? null, version: BOT_BUILD, at: new Date().toISOString() }),
     }).catch(() => {});
   } catch {
     /* ignore */
@@ -1294,6 +1297,8 @@ window.__ModuleLoader__.load({
             }
           });
           const [page, setPage] = React.useState(0);
+          const [armedRerun, setArmedRerun] = React.useState('');
+          const [rerunMsg, setRerunMsg] = React.useState('');
           const switchMode = (m) => {
             setMode(m);
             setPage(0);
@@ -1348,6 +1353,31 @@ window.__ModuleLoader__.load({
               setErr(String(e?.message ?? e));
             }
           }, []);
+
+
+          // 失败/熔断/部分成功的运行可直接重跑：产出新 run，旧记录保留。
+          // 沿用两步确认（点一次变「确认重跑」，再点才执行），不引入原生 confirm。
+          const rerun = async (run) => {
+            if (armedRerun !== run.id) {
+              setArmedRerun(run.id);
+              setTimeout(() => setArmedRerun((prev) => (prev === run.id ? '' : prev)), 4000);
+              return;
+            }
+            setArmedRerun('');
+            setRerunMsg('');
+            try {
+              const r = await fetch('/_dsh-bot/run', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ botId: run.botId, confirm: true }),
+              });
+              const j = await r.json();
+              if (!j?.ok) throw new Error(j?.message || j?.code || '重跑失败');
+              await load();
+            } catch (e) {
+              setRerunMsg(`重跑失败：${e?.message ?? e}`);
+            }
+          };
 
           React.useEffect(() => {
             void load();
@@ -1449,11 +1479,43 @@ window.__ModuleLoader__.load({
                   run.usage?.costKind === 'free' ? '免费渠道' : run.usage?.costKind === 'unknown' ? '无价目' : '付费',
                 ),
               ),
+              (() => {
+                const rerunnable = ['failed', 'budget_exceeded', 'partial'].includes(run.status);
+                if (!rerunnable) return null;
+                const armed = armedRerun === run.id;
+                return h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: (ev) => {
+                      ev.stopPropagation();
+                      void rerun(run);
+                    },
+                    title: armed
+                      ? '再点一次确认重跑（产出新 run，旧记录保留）'
+                      : '重跑一次',
+                    style: {
+                      border: `1px solid ${armed ? BRAND : BORDER_L1}`,
+                      background: 'transparent',
+                      color: armed ? BRAND : LABEL_3,
+                      borderRadius: R_SM,
+                      fontSize: 10,
+                      padding: '2px 8px',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    },
+                  },
+                  armed ? '确认重跑' : '重跑',
+                );
+              })(),
             );
 
           return h(
             'div',
             null,
+            rerunMsg
+              ? h('div', { style: { fontSize: 10, color: ERR, marginBottom: 4 } }, rerunMsg)
+              : null,
             // ---- 工具条：形态切换 + 计数 ----
             h(
               'div',
@@ -3870,6 +3932,135 @@ window.__ModuleLoader__.load({
          *
          * 这样用户既能从系统设置进，也能从 Bot 面板进——两条路一份实现。
          */
+        /**
+         * 诊断块（v0.3.5 刀 2）
+         *
+         * 读 GET /_dsh-bot/doctor，展示四层状态 + 一键复制。
+         * 自身任何异常都只显示「诊断不可用」，不拖垮设置页。
+         */
+        function DoctorPanel() {
+          const [report_, setReport] = React.useState(null);
+          const [busy_, setBusy] = React.useState(false);
+          const [err_, setErr] = React.useState('');
+          const [copied, setCopied] = React.useState('');
+          const load = React.useCallback(async () => {
+            setBusy(true);
+            try {
+              const r = await fetch('/_dsh-bot/doctor', { headers: { accept: 'application/json' } });
+              const j = await r.json();
+              if (!j?.ok) throw new Error(j?.message || '读取失败');
+              setReport(j.value);
+              setErr('');
+            } catch (e) {
+              setReport(null);
+              setErr(String(e?.message ?? e));
+            } finally {
+              setBusy(false);
+            }
+          }, []);
+          React.useEffect(() => {
+            void load();
+          }, [load]);
+
+          const toneOf = (level) => (level === 'error' ? ERR : level === 'warn' ? WARN : OK);
+          const copy = async () => {
+            try {
+              await navigator.clipboard.writeText(report_?.text ?? '');
+              setCopied('已复制');
+              setTimeout(() => setCopied(''), 1500);
+            } catch {
+              setCopied('复制失败，请手动选中');
+            }
+          };
+
+          return h(
+            'div',
+            {
+              style: {
+                marginTop: 14,
+                border: `1px solid ${BORDER_L1}`,
+                borderRadius: R_LG,
+                background: BG_L2,
+                padding: '10px 12px',
+              },
+            },
+            h(
+              'div',
+              { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
+              h('div', { style: { flex: 1, fontSize: 12, fontWeight: 600, color: LABEL_1 } }, '诊断'),
+              report_ ? h('span', { style: { fontSize: 10, color: LABEL_3 } }, `v${report_.version ?? '?'}`) : null,
+              h(
+                'button',
+                {
+                  type: 'button',
+                  onClick: load,
+                  disabled: busy_,
+                  style: {
+                    border: 'none',
+                    cursor: busy_ ? 'default' : 'pointer',
+                    background: 'transparent',
+                    color: BRAND,
+                    fontSize: 11,
+                    padding: '2px 6px',
+                  },
+                },
+                busy_ ? '读取中…' : '刷新',
+              ),
+            ),
+            err_
+              ? h('div', { style: { fontSize: 11, color: ERR } }, `诊断不可用：${err_}`)
+              : !report_
+                ? h('div', { style: { fontSize: 11, color: LABEL_3 } }, '正在读取诊断…')
+                : h(
+                    'div',
+                    null,
+                    ...(report_.checks ?? []).map((c) =>
+                      h(
+                        'div',
+                        { key: c.id, style: { display: 'flex', gap: 8, padding: '4px 0', alignItems: 'flex-start' } },
+                        h('span', {
+                          style: {
+                            width: 7,
+                            height: 7,
+                            borderRadius: 4,
+                            background: toneOf(c.level),
+                            marginTop: 5,
+                            flexShrink: 0,
+                          },
+                        }),
+                        h(
+                          'div',
+                          { style: { flex: 1, minWidth: 0 } },
+                          h('div', { style: { fontSize: 11, color: LABEL_1, fontWeight: 500 } }, c.title),
+                          h('div', { style: { fontSize: 10, color: LABEL_3, wordBreak: 'break-word' } }, c.detail),
+                          c.hint
+                            ? h('div', { style: { fontSize: 10, color: c.level === 'ok' ? LABEL_3 : BRAND, marginTop: 1 } }, `下一步：${c.hint}`)
+                            : null,
+                        ),
+                      ),
+                    ),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        onClick: copy,
+                        style: {
+                          marginTop: 8,
+                          border: `1px solid ${BORDER_L1}`,
+                          background: 'transparent',
+                          color: LABEL_2,
+                          borderRadius: R_SM,
+                          fontSize: 11,
+                          padding: '3px 10px',
+                          cursor: 'pointer',
+                        },
+                      },
+                      copied || '复制诊断',
+                    ),
+                  ),
+          );
+        }
+
         function BotSettingsSection() {
           try {
             const save = React.useCallback(async (next) => {
@@ -3926,6 +4117,7 @@ window.__ModuleLoader__.load({
                 { style: { fontSize: 13, fontWeight: 600, marginBottom: 10 } },
                 'Bot',
               ),
+              h(DoctorPanel, null),
               h(SettingsView, {
                 busy: false,
                 onClose: () => {},

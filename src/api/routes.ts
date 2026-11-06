@@ -84,6 +84,48 @@ function toErrorPayload(e: unknown): { ok: false; code: string; message: string 
   return { ok: false, code: 'INTERNAL', message: msg };
 }
 
+/**
+ * 错误码 → HTTP status（v0.3.5 刀 4）
+ *
+ * 响应体结构完全不变（仍是 { ok:false, code, message }），只改 status。
+ * 面板侧都是「先解析 body 再判 ok」，因此兼容；好处是监控/重试能按状态码工作。
+ */
+const STATUS_BY_CODE: Record<string, number> = {
+  // 400 请求本身不合法
+  INVALID_ARGS: 400,
+  INVALID_ROUTINE: 400,
+  UNSUPPORTED_STEP: 400,
+  ASSERT_FAILED: 400,
+  GOAL_INVALID_TRANSITION: 400,
+  GOAL_FORBIDDEN_WRITE: 400,
+  UNKNOWN_TOOL: 400,
+  PRECHECK_FAILED: 400,
+  CONFIRM_REQUIRED: 400,
+  // 404 找不到
+  BOT_NOT_FOUND: 404,
+  GOAL_NOT_FOUND: 404,
+  ROUTINE_NOT_FOUND: 404,
+  // 409 状态冲突
+  BOT_EXISTS: 409,
+  GOAL_ALREADY_EXISTS: 409,
+  RUN_IN_PROGRESS: 409,
+  DRY_RUN_BLOCKED: 409,
+  BUDGET_EXCEEDED: 409,
+  // 403 越权
+  SANDBOX_VIOLATION: 403,
+  // 其余按 500
+};
+
+export function statusForCode(code: string): number {
+  return STATUS_BY_CODE[code] ?? 500;
+}
+
+/** 错误响应：status 按错误码映射，body 与旧版逐字节一致 */
+function writeError(res: any, e: unknown): void {
+  const payload = toErrorPayload(e);
+  writeJson(res, statusForCode(payload.code), payload);
+}
+
 export interface BotApiRoute {
   kind: 'exact';
   path: string;
@@ -117,6 +159,8 @@ export function makeBotApiRoutes(
     getGlobalSettings?: () => Promise<any>;
     /** 保存设置 */
     saveSettings?: (botId: string | undefined, patch: any) => Promise<any>;
+    /** 诊断聚合（v0.3.5 刀 2）：四层状态，只读，端点自身永远 200 */
+    doctor?: () => Promise<any>;
   },
 ): BotApiRoute[] {
   const routes: BotApiRoute[] = [
@@ -170,7 +214,7 @@ export function makeBotApiRoutes(
             },
           });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -229,7 +273,7 @@ export function makeBotApiRoutes(
             },
           });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -257,7 +301,7 @@ export function makeBotApiRoutes(
           });
           writeJson(res, 200, { ok: true, value: record });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -318,7 +362,7 @@ export function makeBotApiRoutes(
           }
 
           if (problems.length > 0) {
-            writeJson(res, 200, {
+            writeJson(res, 400, {
               ok: false,
               code: 'PRECHECK_FAILED',
               message: '执行前检查未通过：\n· ' + problems.join('\n· '),
@@ -337,7 +381,7 @@ export function makeBotApiRoutes(
           });
           writeJson(res, 200, { ok: true, value: record });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -370,7 +414,7 @@ export function makeBotApiRoutes(
           const result = await runAction.rollback(body.botId, body.snapshotId);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -395,7 +439,7 @@ export function makeBotApiRoutes(
           const result = await runAction.snapshot(body.botId);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -420,7 +464,7 @@ export function makeBotApiRoutes(
           const result = await actOnGoal(service, body.botId, 'accept', body);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -441,7 +485,7 @@ export function makeBotApiRoutes(
           const result = await actOnGoal(service, body.botId, 'dismiss', body);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -474,7 +518,7 @@ export function makeBotApiRoutes(
           const result = await actOnGoal(service, body.botId, 'confirm', body);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -495,7 +539,7 @@ export function makeBotApiRoutes(
           const result = await actOnGoal(service, body.botId, 'reject', body);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -520,7 +564,7 @@ export function makeBotApiRoutes(
           const result = await actOnGoal(service, body.botId, 'set', body);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -549,7 +593,7 @@ export function makeBotApiRoutes(
           const result = await actOnGoal(service, body.botId, 'abandon', body);
           writeJson(res, 200, { ok: true, value: result });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -577,7 +621,7 @@ export function makeBotApiRoutes(
             value: { archives: await service.listGoalArchives(botId) },
           });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -626,7 +670,7 @@ export function makeBotApiRoutes(
 
           writeJson(res, 200, { ok: true, value: bot });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -655,7 +699,7 @@ export function makeBotApiRoutes(
           await service.remove(String(body.botId));
           writeJson(res, 200, { ok: true, value: { deleted: true } });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -682,7 +726,7 @@ export function makeBotApiRoutes(
             },
           });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -743,7 +787,7 @@ export function makeBotApiRoutes(
           });
           writeJson(res, 200, { ok: true, value: next });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -784,7 +828,7 @@ export function makeBotApiRoutes(
           );
           writeJson(res, 200, { ok: true, value: result ?? null });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -862,7 +906,7 @@ export function makeBotApiRoutes(
             },
           });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -895,7 +939,7 @@ export function makeBotApiRoutes(
           const removed = await service.clearRuns(String(body.botId));
           writeJson(res, 200, { ok: true, value: { removed } });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -920,7 +964,7 @@ export function makeBotApiRoutes(
           const okDel = await service.deleteRun(String(body.botId), String(body.runId));
           writeJson(res, 200, { ok: true, value: { deleted: okDel } });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -960,7 +1004,7 @@ export function makeBotApiRoutes(
           await service.saveGoal(String(body.botId), next);
           writeJson(res, 200, { ok: true, value: next });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -992,7 +1036,7 @@ export function makeBotApiRoutes(
           const archive = await archiveGoalFor(service, String(body.botId), done, note);
           writeJson(res, 200, { ok: true, value: { goal: done, archive } });
         } catch (e) {
-          writeJson(res, 200, toErrorPayload(e));
+          writeError(res, e);
         }
       },
     },
@@ -1077,6 +1121,36 @@ export function makeBotApiRoutes(
           );
         } catch {
           /* ignore */
+        }
+      },
+    },
+    // ----------------------------------------------------------
+    // 诊断（v0.3.5 刀 2）
+    //
+    // 聚合「宿主注册 / 客户端面板 / 启动崩溃 / 模型」四层状态。
+    // ⚠️ 这个端点自身永远 200：诊断失败若返回 4xx/5xx，
+    //    就和「诊断出故障」区分不开了。
+    // ----------------------------------------------------------
+    {
+      kind: 'exact',
+      path: `${API_PREFIX}/doctor`,
+      handler: async (_req, res) => {
+        try {
+          if (!runAction.doctor) {
+            writeJson(res, 200, {
+              ok: true,
+              value: { ok: true, checks: [], text: '诊断未启用（插件入口未注入）' },
+            });
+            return;
+          }
+          const report = await runAction.doctor();
+          writeJson(res, 200, { ok: true, value: report });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          writeJson(res, 200, {
+            ok: true,
+            value: { ok: true, checks: [], text: `诊断自身失败：${msg}` },
+          });
         }
       },
     },

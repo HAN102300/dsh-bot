@@ -3,7 +3,7 @@
 > 从 `ROADMAP-v0.3.md` §七 拆出：这份是**宿主怎么工作**的知识，不是计划。
 > 与 [LESSONS.md](./LESSONS.md) 的分工：LESSONS 是「我们该守的工程原则」，本文件是「宿主实际长什么样」。
 >
-> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` 0.2.1-rc.x。**每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
+> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` **0.2.1-rc.x 与 0.2.2-rc.x**（两者工具执行签名不同，见契约 2）。**每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
 
 ## 背景
 
@@ -21,17 +21,27 @@
 
 → 宿主 schema 校验要求对象参数显式写 `additionalProperties: true/false`，裸写会被拒。
 
-### 2. 调用签名：`ToolRuntime.execute(exec)` 是单对象
+### 2. 调用签名：0.2.1 单对象、0.2.2 批量（会变！）
 
 ```ts
-execute({ name, arguments, signal })   // ✅
-execute(name, args, opts)              // ❌ 位置参数
+// 0.2.1-rc.x：单次执行
+execute({ name, arguments, signal })                  // ✅
+execute(name, args, opts)                             // ❌ 位置参数
+
+// 0.2.2-rc.x 起：整批执行
+execute({
+  calls: [{ type: 'tool-call', id, name, arguments }], // arguments 是 JSON 字符串
+  signal,
+})                                                    // → { results: [{ callId, result }] }
 ```
 
-按位置调会把 `exec` 变成字符串，在 `snapshotJsonValue` 处抛 "tool execution arguments must be losslessly JSON-serializable"——**报错极具误导性**，看着像参数不干净，其实是整个 exec 对象没构造对。
+三条必须记住的点：
 
-→ 桥接层 `call()` 现在先试门面风格 `tools.call(name, args)`，再退 `tools.execute({name, arguments, signal})`。
+- `arguments` 在批量形态里是**字符串**（模型原样的 JSON），不是对象；传对象会在入参校验处被拒。
+- 返回是 `ToolBatchResult`，真实结果在 `results[0].result`；`value` / `content` 在这一层之下。
+- `signal` 依旧必填（`createExecution` 无条件读 `exec.signal.aborted`）。
 
+→ 桥接层 `call()` 采用「批量优先、单次回退」：先试 `execute({ calls, signal })`，仅当抛出入参校验类错误时回退 `execute({ name, arguments, signal })`。**业务错误必须原样抛出，不能被回退掩盖。**
 ### 3. `signal` 必填
 
 `createExecution` 无条件读 `exec.signal.aborted`，不传直接 `TypeError: reading 'aborted'`。没有 signal 时必须给 `new AbortController().signal`。
@@ -64,7 +74,20 @@ execute(name, args, opts)              // ❌ 位置参数
 
 → 改包名必须同步：`cordis.patch.yml` 的 `name`（模块 import 用）、client graph 的注册标识、市场条目。0.3.3 的挂载缺陷就是这条没同步导致的。
 
+### 8. 执行器外置与条件工具（0.2.2 起）
+
+0.2.2 把 native / PTC 呈现拆成独立执行器插件（`dsh-tool-executor-native` / `-ptc`），一个部署只挂一个；同时 `register(definition, { when })` 支持按模型步骤求值，`resolve({ agent, modelSelection, signal })` 产出该步的 `ResolvedToolSet`。
+
+→ 插件侧不改 `defineTool` 的用法就不受影响；但**不要假设工具在每一步都可见**——提示词与调用要能容忍「本步没被准入」。
+
+### 9. engines 与预发布版本
+
+宿主判定兼容性用 `semver.satisfies(runtime, range, { includePrerelease: true })`（`dsh-app-boot` 的 `evaluatePluginCompatibility`）。普通 semver **不会**把 `0.2.2-rc.1` 算进 `>=0.2.1-rc.1 <0.3.0-0`。
+
+→ `engines.dsh` 写 `>=0.2.0-0 <0.3.0-0`，一次覆盖 0.2.x 的 alpha/rc，同时仍挡住 0.3；只写 `>=0.2.x-rc.1` 会在 npm/pnpm 的严格 engine 校验下失效。
+
 ## 使用方式
 
 - 新增 provider / 升级宿主 / 改插件清单 → 先读本文件对应条目，再跑 A1 + A2。
+- **工具执行签名一变（0.2.1 → 0.2.2 就是一次），bridge 的双路径必须先回归**，再谈其他功能。
 - 发现新的宿主契约差异 → 追加到此文件，并在 LESSONS.md 记一条工程原则。

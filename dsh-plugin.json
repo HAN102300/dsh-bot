@@ -3,7 +3,7 @@
   "manifestVersion": "0.15",
   "id": "dsh-bot.core",
   "name": "dsh-bot",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "license": "MIT",
   "facets": {
     "host": {
@@ -92,7 +92,8 @@
           "schedules",
           "heartbeat",
           "goal",
-          "adopt"
+          "adopt",
+          "doctor"
         ],
         "shellPermission": "仅读写 ~/.dsh/bot 与各 Bot 工作区"
       },
@@ -110,6 +111,16 @@
           "run"
         ],
         "shellPermission": "随 Routine 步骤继承，受 dry-run 与预算约束"
+      },
+      {
+        "serverName": "dsh-bot",
+        "transport": "in-process",
+        "source": "dsh-bot plugin (http)",
+        "publicPrefix": "http_",
+        "tools": [
+          "get"
+        ],
+        "shellPermission": "只读 HTTP GET，默认拒绝私网/环回地址"
       }
     ],
     "x-components": [
@@ -122,6 +133,3 @@
   },
   "subscriptions": []
 }
-
-
-

@@ -19,9 +19,14 @@ const copyClient = () => {
   const src = path.resolve('src/client/bundle.js');
   const dst = path.resolve('lib/client.js');
   if (fs.existsSync(src)) {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')) as {
+      version: string;
+    };
+    // __BOT_BUILD__ → package.json.version：让面板能上报自己跑的是哪个构建
+    const code = fs.readFileSync(src, 'utf8').replaceAll('__BOT_BUILD__', pkg.version);
     fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.copyFileSync(src, dst);
-    console.log('✔ copied src/client/bundle.js → lib/client.js');
+    fs.writeFileSync(dst, code);
+    console.log(`✔ copied src/client/bundle.js → lib/client.js (build ${pkg.version})`);
   } else {
     console.warn('⚠ src/client/bundle.js not found, skipping client bundle');
   }
