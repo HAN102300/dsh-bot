@@ -220,6 +220,15 @@ describe('SettingsStore 持久化', () => {
     expect(s.dailyCny).toBe(2);
   });
 
+  // 0.3.5 线上故障：这个覆盖关系只存在于存储层，通知轮询却只读全局，
+  // 于是「单 Bot 关闭仅异常打扰」永远不生效。这条用例锁住契约。
+  it('单 Bot 可覆盖通知策略（notifyOnlyOnDecision）', async () => {
+    await store.setGlobal({ notifyOnlyOnDecision: true });
+    await store.setForBot('bot_notify', { notifyOnlyOnDecision: false });
+    expect((await store.resolve('bot_notify')).notifyOnlyOnDecision).toBe(false);
+    expect((await store.resolve()).notifyOnlyOnDecision).toBe(true);
+  });
+
   it('单 Bot 不设置时继承全局', async () => {
     await store.setGlobal({ dailyCny: 8 });
     const s = await store.resolve('bot_y');

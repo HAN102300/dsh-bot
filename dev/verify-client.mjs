@@ -139,6 +139,13 @@ if (def.id !== pkg.name) {
 }
 console.log(`✅ id = "${def.id}"（等于包名）`);
 
+// 8. 通知策略必须按 Bot 读取（单 Bot 覆盖全局）——0.3.5 的静默漏通知就死在这里
+if (!code.includes('/settings?botId=') || !code.includes('policyOf')) {
+  console.log('❌ 通知轮询没有按 Bot 读取设置：单 Bot 的「仅异常打扰」不会生效');
+  process.exit(1);
+}
+console.log('✅ 通知轮询按 Bot 读取生效设置（单 Bot 覆盖全局）');
+
 // 5. factory 物化
 const fakeReact = {
   createElement: (...a) => ({ type: a[0], props: a[1] }),

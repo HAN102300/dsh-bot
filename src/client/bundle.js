@@ -4255,15 +4255,29 @@ window.__ModuleLoader__.load({
           };
 
           let notifying = false;
+
+          /** 取某个 Bot 的生效设置；失败时回退全局。 */
+          const policyOf = async (botId) => {
+            try {
+              const r = await fetch(
+                `/_dsh-bot/settings?botId=${encodeURIComponent(botId)}`,
+                { headers: { accept: 'application/json' } },
+              );
+              const j = await r.json();
+              if (j?.ok && j.value?.effective) return j.value.effective;
+            } catch {
+              /* 回退全局 */
+            }
+            return null;
+          };
+
           const notifyTick = async () => {
             if (notifying) return;
             notifying = true;
             try {
               const sRes = await fetch('/_dsh-bot/settings', { headers: { accept: 'application/json' } });
               const sJson = await sRes.json();
-              const settings = sJson?.ok ? sJson.value?.effective : null;
-              if (!settings?.notifySystem) return;
-              if (inQuietHours(settings.quietHours)) return;
+              const globalSettings = sJson?.ok ? sJson.value?.effective : null;
 
               const oRes = await fetch('/_dsh-bot/overview', { headers: { accept: 'application/json' } });
               const oJson = await oRes.json();
@@ -4275,6 +4289,11 @@ window.__ModuleLoader__.load({
               let newest = lastSeen;
               // 每个新完成运行都要看；为控制请求量只拉每 Bot 最近 5 条
               for (const b of bots) {
+                // ⭐ 单 Bot 设置要覆盖全局：0.3.5 及之前这里只看全局 settings，
+                //    导致「某个 Bot 关闭仅异常打扰」永远不生效（0.3.6 修复）。
+                const settings = (await policyOf(b.id)) ?? globalSettings;
+                if (!settings?.notifySystem) continue;
+                if (inQuietHours(settings.quietHours)) continue;
                 const rRes = await fetch(`/_dsh-bot/runs/list?botId=${encodeURIComponent(b.id)}&limit=5`, {
                   headers: { accept: 'application/json' },
                 });
@@ -4329,6 +4348,19 @@ window.__ModuleLoader__.load({
             setInterval(() => void notifyTick(), NOTIFY_POLL_MS);
           }, 15_000);
           report('ok', 'notify poller armed');
+          // 通知能力自证：没有它，「收不到通知」只能靠猜
+          try {
+            if (typeof Notification === 'undefined') {
+              report('notify-unavailable', 'Notification API 不存在');
+            } else {
+              report('notify-capability', `permission=${Notification.permission}`);
+              if (Notification.permission === 'default') {
+                try { void Notification.requestPermission?.(); } catch {}
+              }
+            }
+          } catch {
+            /* 能力探测失败不影响轮询 */
+          }
         } catch (e) {
           report('notify-poller-error', String(e?.message ?? e));
         }
