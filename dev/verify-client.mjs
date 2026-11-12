@@ -171,6 +171,50 @@ if (code.includes('editCadence')) {
 }
 console.log('✅ 执行周期为结构化控件（每 N 小时 / 每天 / 每周 / 不自动跑）+ 人话描述');
 
+// 13. 渲染期用到的纯函数必须在模块作用域（不能掉进 report() 里）
+//     判断方式：找到 report 的函数体范围（括号配对），确认相关函数不在其中。
+function functionBodySpan(src, fnName) {
+  const start = src.indexOf('function ' + fnName + '(');
+  if (start < 0) return null;
+  const brace = src.indexOf('{', start);
+  let depth = 0;
+  for (let i = brace; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      for (i++; i < src.length; i++) {
+        if (src[i] === '\\') { i++; continue; }
+        if (src[i] === quote) break;
+      }
+      continue;
+    }
+    if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) return [start, i]; }
+  }
+  return null;
+}
+const reportSpan = functionBodySpan(code, 'report');
+if (!reportSpan) {
+  console.log('❌ 找不到 report() 的函数体');
+  process.exit(1);
+}
+for (const fn of ['buildCadence', 'parseCadence', 'describeCadence']) {
+  const fnStart = code.indexOf('function ' + fn + '(');
+  if (fnStart < 0) {
+    console.log(`❌ 缺少函数 ${fn}`);
+    process.exit(1);
+  }
+  if (fnStart > reportSpan[0] && fnStart < reportSpan[1]) {
+    console.log(`❌ ${fn} 被写进了 report()：渲染时会 ReferenceError`);
+    process.exit(1);
+  }
+  if (fnStart > code.indexOf('function apply(')) {
+    console.log(`❌ ${fn} 定义在 apply 之后，渲染期不可见`);
+    process.exit(1);
+  }
+}
+console.log('✅ 周期纯函数处于模块作用域（buildCadence / parseCadence / describeCadence）');
+
 // 12. 展开面板必须 portal 到 body（否则会被聊天区的 transform 祖先困住）
 if (!code.includes('createPortal') || !code.includes('function portal(')) {
   console.log('❌ 展开面板没有 portal 到 body：fixed 会被祖先限制，出现遮挡/不滚动');

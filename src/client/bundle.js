@@ -482,7 +482,11 @@ function report(status, detail) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status, detail: detail ?? null, version: BOT_BUILD, at: new Date().toISOString() }),
     }).catch(() => {});
-  
+  } catch {
+    /* ignore */
+  }
+}
+
   /** 把用户可读的节奏转成 cron（只支持本面板提供的三种模式） */
   function buildCadence(mode, hours, time, days, custom) {
     if (mode === 'none') return '';
@@ -541,10 +545,6 @@ function report(status, detail) {
     }
     return '';
   }
-} catch {
-    /* ignore */
-  }
-}
 
 report('bundle-executing', 'v2 design-system');
 
