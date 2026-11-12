@@ -161,11 +161,15 @@ if (!code.includes('/_dsh-bot/bot/update')) {
 console.log('✅ Bot 资料编辑接 /bot/update');
 
 // 11. 执行周期（cron）编辑
-if (!code.includes('执行周期 cron') || !code.includes('cadence: editCadence.trim()')) {
-  console.log('❌ 编辑表单缺少执行周期（cadence）字段');
+if (!code.includes('每 N 小时') || !code.includes('function buildCadence(') || !code.includes('describeCadence(')) {
+  console.log('❌ 编辑表单缺少可调节的执行周期（结构化模式 + 人话描述）');
   process.exit(1);
 }
-console.log('✅ 编辑表单含执行周期（cron + 预设）');
+if (code.includes('editCadence')) {
+  console.log('❌ 执行周期仍残留自由输入的 cron 字段');
+  process.exit(1);
+}
+console.log('✅ 执行周期为结构化控件（每 N 小时 / 每天 / 每周 / 不自动跑）+ 人话描述');
 
 // 12. 展开面板必须 portal 到 body（否则会被聊天区的 transform 祖先困住）
 if (!code.includes('createPortal') || !code.includes('function portal(')) {

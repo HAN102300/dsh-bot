@@ -482,7 +482,66 @@ function report(status, detail) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status, detail: detail ?? null, version: BOT_BUILD, at: new Date().toISOString() }),
     }).catch(() => {});
-  } catch {
+  
+  /** 把用户可读的节奏转成 cron（只支持本面板提供的三种模式） */
+  function buildCadence(mode, hours, time, days, custom) {
+    if (mode === 'none') return '';
+    if (mode === 'custom') return custom || '';
+    const [hhRaw, mmRaw] = String(time || '09:00').split(':');
+    const hh = Math.min(23, Math.max(0, Number(hhRaw) || 0));
+    const mm = Math.min(59, Math.max(0, Number(mmRaw) || 0));
+    if (mode === 'hours') {
+      const n = Math.min(24, Math.max(1, Number(hours) || 12));
+      if (n >= 24) return `0 0 * * *`;
+      return `0 */${n} * * *`;
+    }
+    if (mode === 'daily') return `${mm} ${hh} * * *`;
+    if (mode === 'weekly') {
+      const list = (days && days.length ? days : [1]).join(',');
+      return `${mm} ${hh} * * ${list}`;
+    }
+    return '';
+  }
+
+  /** 反向解析：把已有 cron 还原成可编辑的 UI 状态 */
+  function parseCadence(cron) {
+    const raw = String(cron || '').trim();
+    if (!raw) return { mode: 'none', hours: 12, time: '09:00', days: [1], custom: '' };
+    const parts = raw.split(/\s+/);
+    if (parts.length !== 5) return { mode: 'custom', hours: 12, time: '09:00', days: [1], custom: raw };
+    const [mi, ho, dom, mon, dow] = parts;
+    const num = (s) => /^\d+$/.test(s);
+    if (mi === '0' && /^\*\/\d+$/.test(ho) && dom === '*' && mon === '*' && dow === '*') {
+      return { mode: 'hours', hours: Number(ho.slice(2)), time: '09:00', days: [1], custom: '' };
+    }
+    if (num(mi) && num(ho) && dom === '*' && mon === '*' && dow === '*') {
+      return { mode: 'daily', hours: 12, time: `${ho.padStart(2, '0')}:${mi.padStart(2, '0')}`, days: [1], custom: '' };
+    }
+    if (num(mi) && num(ho) && dom === '*' && mon === '*' && /^[0-6](,[0-6])*$/.test(dow)) {
+      return { mode: 'weekly', hours: 12, time: `${ho.padStart(2, '0')}:${mi.padStart(2, '0')}`, days: dow.split(',').map(Number), custom: '' };
+    }
+    return { mode: 'custom', hours: 12, time: '09:00', days: [1], custom: raw };
+  }
+
+  /** 人话描述当前节奏 */
+  function describeCadence(mode, hours, time, days, custom) {
+    if (mode === 'none') return '不自动执行（只手动触发）';
+    if (mode === 'custom') return `自定义 cron：${custom || '（空）'}`;
+    if (mode === 'hours') {
+      const n = Math.min(24, Math.max(1, Number(hours) || 12));
+      return n >= 24
+        ? '每天 00:00 执行一次'
+        : `每 ${n} 小时执行一次（每天 ${Math.floor(24 / n)} 次，整点）`;
+    }
+    if (mode === 'daily') return `每天 ${time || '09:00'} 执行一次`;
+    if (mode === 'weekly') {
+      const names = ['日', '一', '二', '三', '四', '五', '六'];
+      const list = (days && days.length ? days : [1]).map((d) => `周${names[d]}`).join('、');
+      return `每 ${list} 的 ${time || '09:00'} 执行`;
+    }
+    return '';
+  }
+} catch {
     /* ignore */
   }
 }
@@ -2812,7 +2871,11 @@ window.__ModuleLoader__.load({
             const [editName, setEditName] = React.useState('');
             const [editRole, setEditRole] = React.useState('');
             const [editNote, setEditNote] = React.useState('');
-            const [editCadence, setEditCadence] = React.useState('');
+            const [cadenceMode, setCadenceMode] = React.useState('none');
+            const [cadenceHours, setCadenceHours] = React.useState(12);
+            const [cadenceTime, setCadenceTime] = React.useState('09:00');
+            const [cadenceDays, setCadenceDays] = React.useState([1]);
+            const [cadenceCustom, setCadenceCustom] = React.useState('');
             /** 当前视图：bots 列表 / settings 设置页 */
             const [view, setView] = React.useState('bots');
 
@@ -2853,7 +2916,12 @@ window.__ModuleLoader__.load({
               if (editPrefilled.current === editOpen) return;
               if (detail?.bot?.id === editOpen) {
                 setEditNote(detail.bot.systemPromptExtra ?? '');
-                setEditCadence(detail.goal?.cadence ?? '');
+                const parsed = parseCadence(detail.goal?.cadence);
+                setCadenceMode(parsed.mode);
+                setCadenceHours(parsed.hours);
+                setCadenceTime(parsed.time);
+                setCadenceDays(parsed.days);
+                setCadenceCustom(parsed.custom);
                 editPrefilled.current = editOpen;
               }
             }, [editOpen, detail]);
@@ -3673,39 +3741,137 @@ window.__ModuleLoader__.load({
                           multiline: true,
                         }),
                         h('div', { style: { fontSize: 10, color: LABEL_3 } }, '执行周期'),
-                        h(Input, {
-                          value: editCadence,
-                          onChange: setEditCadence,
-                          placeholder: '执行周期 cron，如 0 0,12 * * *（留空 = 不自动跑）',
-                        }),
                         h(
                           'div',
                           { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
                           ...[
-                            ['每 6 小时', '0 */6 * * *'],
-                            ['每 12 小时', '0 0,12 * * *'],
-                            ['每天 09:00', '0 9 * * *'],
-                            ['不自动跑', ''],
-                          ].map(([label, cron]) =>
+                            ['hours', '每 N 小时'],
+                            ['daily', '每天'],
+                            ['weekly', '每周'],
+                            ['none', '不自动跑'],
+                          ].map(([mode, label]) =>
                             h(
                               'button',
                               {
-                                key: label,
+                                key: mode,
                                 type: 'button',
-                                onClick: () => setEditCadence(cron),
+                                onClick: () => setCadenceMode(mode),
                                 style: {
-                                  fontSize: 10,
-                                  border: `1px solid ${editCadence === cron ? BRAND : BORDER_L1}`,
-                                  background: 'transparent',
-                                  color: editCadence === cron ? BRAND : LABEL_3,
+                                  fontSize: 11,
+                                  border: `1px solid ${cadenceMode === mode ? BRAND : BORDER_L1}`,
+                                  background: cadenceMode === mode ? BG_L3 : 'transparent',
+                                  color: cadenceMode === mode ? BRAND : LABEL_3,
                                   borderRadius: R_SM,
-                                  padding: '2px 8px',
+                                  padding: '3px 10px',
                                   cursor: 'pointer',
                                 },
                               },
                               label,
                             ),
                           ),
+                        ),
+                        cadenceMode === 'hours'
+                          ? h(
+                              'div',
+                              { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                              h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  onClick: () => setCadenceHours((v) => Math.max(1, v - 1)),
+                                  style: { width: 26, height: 26, borderRadius: R_SM, border: `1px solid ${BORDER_L1}`, background: 'transparent', color: LABEL_2, cursor: 'pointer', fontSize: 14 },
+                                },
+                                '−',
+                              ),
+                              h(
+                                'div',
+                                { style: { minWidth: 92, textAlign: 'center', fontSize: 12, color: LABEL_1 } },
+                                `每 ${cadenceHours} 小时`,
+                              ),
+                              h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  onClick: () => setCadenceHours((v) => Math.min(24, v + 1)),
+                                  style: { width: 26, height: 26, borderRadius: R_SM, border: `1px solid ${BORDER_L1}`, background: 'transparent', color: LABEL_2, cursor: 'pointer', fontSize: 14 },
+                                },
+                                '＋',
+                              ),
+                              h('div', { style: { fontSize: 10, color: LABEL_3 } }, '整点触发'),
+                            )
+                          : null,
+                        cadenceMode === 'daily' || cadenceMode === 'weekly'
+                          ? h(
+                              'div',
+                              { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                              h('div', { style: { fontSize: 10, color: LABEL_3 } }, '时间'),
+                              h('input', {
+                                type: 'time',
+                                value: cadenceTime,
+                                onChange: (e) => setCadenceTime(e.target.value || '09:00'),
+                                style: {
+                                  width: 110,
+                                  boxSizing: 'border-box',
+                                  fontFamily: FONT,
+                                  fontSize: 12,
+                                  color: LABEL_1,
+                                  background: BG_L1,
+                                  border: `1px solid ${BORDER_L2}`,
+                                  borderRadius: R_SM,
+                                  padding: '4px 8px',
+                                  outline: 'none',
+                                },
+                              }),
+                            )
+                          : null,
+                        cadenceMode === 'weekly'
+                          ? h(
+                              'div',
+                              { style: { fontSize: 10, color: LABEL_3 } },
+                              '星期（可多选）',
+                              h(
+                                'div',
+                                { style: { display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' } },
+                                ...['日', '一', '二', '三', '四', '五', '六'].map((label, idx) =>
+                                  h(
+                                    'button',
+                                    {
+                                      key: idx,
+                                      type: 'button',
+                                      onClick: () =>
+                                        setCadenceDays((prev) =>
+                                          prev.includes(idx)
+                                            ? prev.filter((x) => x !== idx)
+                                            : [...prev, idx].sort((a, b) => a - b),
+                                        ),
+                                      style: {
+                                        width: 26,
+                                        height: 24,
+                                        borderRadius: R_SM,
+                                        border: `1px solid ${cadenceDays.includes(idx) ? BRAND : BORDER_L1}`,
+                                        background: cadenceDays.includes(idx) ? BG_L3 : 'transparent',
+                                        color: cadenceDays.includes(idx) ? BRAND : LABEL_3,
+                                        fontSize: 11,
+                                        cursor: 'pointer',
+                                      },
+                                    },
+                                    label,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : null,
+                        cadenceMode === 'custom'
+                          ? h(
+                              'div',
+                              { style: { fontSize: 10, color: WARN } },
+                              `当前是自定义 cron（${cadenceCustom}）；选择上面的模式会覆盖它。`,
+                            )
+                          : null,
+                        h(
+                          'div',
+                          { style: { fontSize: 10, color: LABEL_3 } },
+                          `将执行：${describeCadence(cadenceMode, cadenceHours, cadenceTime, cadenceDays, cadenceCustom)}`,
                         ),
                         h(
                           'div',
@@ -3726,7 +3892,7 @@ window.__ModuleLoader__.load({
                                       name: editName.trim(),
                                       role: editRole.trim(),
                                       systemPromptExtra: editNote,
-                                      cadence: editCadence.trim(),
+                                      cadence: buildCadence(cadenceMode, cadenceHours, cadenceTime, cadenceDays, cadenceCustom),
                                     }),
                                   });
                                   const j = await r.json();
