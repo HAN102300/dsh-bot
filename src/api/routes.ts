@@ -127,6 +127,55 @@ function writeError(res: any, e: unknown): void {
   writeJson(res, statusForCode(payload.code), payload);
 }
 
+/**
+ * cron → 人话短语（只覆盖本面板生成的三类；自定义返回 null）
+ * 用于在改执行周期时，同步目标描述里的「每 12 小时 / 每天 09:00」等措辞。
+ */
+function cadencePhrase(cron: string): string | null {
+  const raw = String(cron || '').trim();
+  if (!raw) return null;
+  const parts = raw.split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [mi, ho, dom, mon, dow] = parts;
+  const num = (s: string) => /^\d+$/.test(s);
+  const hm = (h: string, m: string) => `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+  const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+
+  if (mi === '0' && /^\*\/\d+$/.test(ho) && dom === '*' && mon === '*' && dow === '*') {
+    const n = Number(ho.slice(2));
+    return n >= 24 ? '每天 00:00' : `每 ${n} 小时`;
+  }
+  if (num(mi) && num(ho) && dom === '*' && mon === '*' && dow === '*') {
+    return `每天 ${hm(ho, mi)}`;
+  }
+  if (num(mi) && num(ho) && dom === '*' && mon === '*' && /^[0-6](,[0-6])*$/.test(dow)) {
+    const days = dow.split(',').map(Number).map((d) => `周${WEEK[d]}`).join('、');
+    return `每${days} ${hm(ho, mi)}`;
+  }
+  return null;
+}
+
+/**
+ * 把目标描述里的旧节奏措辞替换成新 cron 对应的人话短语。
+ * 只替换「节奏片段」，其余用户文案原样保留；匹配不到就不动（不硬塞）。
+ */
+export function syncCadenceInDescription(desc: string, cron: string): string {
+  const text = String(desc || '');
+  const phrase = cadencePhrase(cron);
+  if (!phrase) return text;
+  // 时间短语以数字结尾时补一个空格（"每天 00:00 查询"），否则直接接（"每 12 小时查询"）
+  const withSpace = () => (/\d$/.test(phrase) ? phrase + ' ' : phrase);
+  const rules: Array<[RegExp, string]> = [
+    [/每过?\s*\d+\s*小时\s*/, withSpace()],
+    [/每天\s*\d{1,2}:\d{2}\s*/, withSpace()],
+    [/每周[^，。；\s]{0,12}\s*/, withSpace()],
+  ];
+  for (const [re, repl] of rules) {
+    if (re.test(text)) return text.replace(re, repl);
+  }
+  return text;
+}
+
 export interface BotApiRoute {
   kind: 'exact';
   path: string;
@@ -271,6 +320,10 @@ export function makeBotApiRoutes(
             if (goal) {
               await service.saveGoal(botId, {
                 ...goal,
+                // 描述里的节奏措辞也一起改，避免面板上出现「24 小时」+「每过 12 小时」并存
+                description: cadencePatch
+                  ? syncCadenceInDescription(goal.description, cadencePatch)
+                  : goal.description,
                 cadence: cadencePatch || undefined,
                 updatedAt: new Date().toISOString(),
               });
