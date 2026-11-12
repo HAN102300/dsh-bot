@@ -514,8 +514,28 @@ window.__ModuleLoader__.load({
     //    必须在 apply 之前就绪，否则渲染时会抛 "h is not a function"。
     React = require('react');
     h = React.createElement;
+    /** react-dom 可能不存在（旧宿主）；拿不到就回退为原地渲染 */
+    let ReactDOM = null;
+    try {
+      ReactDOM = require('react-dom');
+    } catch {
+      ReactDOM = null;
+    }
+    /** 渲染到 document.body：绕开聊天输入区里「有 transform 的祖先」对 fixed 的影响 */
+    function portal(node) {
+      try {
+        if (ReactDOM?.createPortal && typeof document !== 'undefined' && document.body) {
+          return ReactDOM.createPortal(node, document.body);
+        }
+      } catch {
+        /* 回退 */
+      }
+      return node;
+    }
 
     function apply(ctx) {
+      /** 侧边栏入口的运行时开关（设置页与首次引导共用；必须在 apply 作用域内） */
+      const sidebarController = { apply: (_enabled) => {} };
       try {
         injectStyle();
 
@@ -1970,6 +1990,22 @@ window.__ModuleLoader__.load({
               ),
             ]),
 
+            group('界面', [
+              h(ToggleRow, {
+                label: '侧边栏图标入口',
+                hint: '在左侧边栏显示 Bot 图标，点击打开 Bot 设置页；关闭后仍可从设置页的 Bot 分区进入',
+                value: s.sidebarEntry !== false,
+                onChange: (v) => {
+                  patch('sidebarEntry', v);
+                  try {
+                    sidebarController.apply(v);
+                  } catch {
+                    /* 注册失败不影响设置保存 */
+                  }
+                },
+              }),
+            ]),
+
             group('最近运行', [
               h(RunsSection, { busy }),
             ]),
@@ -2771,6 +2807,12 @@ window.__ModuleLoader__.load({
             const [moreOpen, setMoreOpen] = React.useState(null);
             /** 哪个 Bot 的「配置与危险操作」展开（与「他知道什么」分属两层） */
             const [dangerOpen, setDangerOpen] = React.useState(null);
+            /** 哪个 Bot 正在编辑资料（名称 / 职责 / 附加说明） */
+            const [editOpen, setEditOpen] = React.useState(null);
+            const [editName, setEditName] = React.useState('');
+            const [editRole, setEditRole] = React.useState('');
+            const [editNote, setEditNote] = React.useState('');
+            const [editCadence, setEditCadence] = React.useState('');
             /** 当前视图：bots 列表 / settings 设置页 */
             const [view, setView] = React.useState('bots');
 
@@ -2800,6 +2842,22 @@ window.__ModuleLoader__.load({
             React.useEffect(() => {
               if (open && !data) void refresh();
             }, [open, data, refresh]);
+
+            // 打开编辑时填充「附加说明」：详情异步到达，只填一次，避免覆盖用户输入
+            const editPrefilled = React.useRef(null);
+            React.useEffect(() => {
+              if (!editOpen) {
+                editPrefilled.current = null;
+                return;
+              }
+              if (editPrefilled.current === editOpen) return;
+              if (detail?.bot?.id === editOpen) {
+                setEditNote(detail.bot.systemPromptExtra ?? '');
+                setEditCadence(detail.goal?.cadence ?? '');
+                editPrefilled.current = editOpen;
+              }
+            }, [editOpen, detail]);
+
 
             // 展开某个 Bot 的详情时，拉一次完整数据
             // （目标 / 运行史 / 记忆 / 例行流程 / 快照都在这个接口里）
@@ -3068,14 +3126,43 @@ window.__ModuleLoader__.load({
             // ⚠️ 之前所有内容平铺在一层，详情区一展开就把面板撑得很高，
             //    超出可视区域后既看不到下面、也没法滚（因为根本没有滚动容器）。
             //    现在用 flex 列布局 + 中部 overflow-y:auto 解决。
-            return h(
+            return portal(h(
               'div',
-              { className: `${NS}-dock` },
+              {
+                className: `${NS}-dock`,
+                style: {
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 9998,
+                  background: 'rgba(0, 0, 0, 0.45)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 20,
+                },
+                onMouseDown: (e) => {
+                  if (e.target === e.currentTarget) setOpen(false);
+                },
+              },
+              h(SidebarEntryPrompt, null),
               h(
                 'div',
                 {
                   className: `${NS}-dock-inner ${NS}-fade ${NS}-expanded`,
-                  style: card,
+                  // v0.3.7 修正：展开态改为视口居中的浮层。
+                  // 贴底面板会随输入框高度被挤压，无论怎么算 max-height 都会出现「顶部被挡」；
+                  // 浮层用 82vh 上限 + 内部滚动，与输入框高度彻底解耦。
+                  style: {
+                    ...card,
+                    position: 'relative',
+                    width: 'min(760px, 94vw)',
+                    maxHeight: '82vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    zIndex: 9998,
+                    boxShadow: 'var(--dsw-shadow-lv3)',
+                  },
                 },
                 // ---------- 头部（固定） ----------
                 h(
@@ -3520,6 +3607,25 @@ window.__ModuleLoader__.load({
                         'button',
                         {
                           className: `${NS}-row-btn`,
+                          onClick: () => {
+                            const next = editOpen === b.id ? null : b.id;
+                            setEditOpen(next);
+                            if (next) {
+                              setEditName(b.name ?? '');
+                              setEditRole(b.role ?? '');
+                              setEditNote('');
+                              if (!detail || detail.bot?.id !== b.id) void loadDetail(b.id);
+                            }
+                          },
+                          title: editOpen === b.id ? '收起编辑' : '编辑名称 / 职责 / 附加说明 / 执行周期',
+                          type: 'button',
+                        },
+                        '编辑',
+                      ),
+                      h(
+                        'button',
+                        {
+                          className: `${NS}-row-btn`,
                           onClick: () => setDetailId(isOpen ? null : b.id),
                           title: isOpen ? '收起详情' : '查看详情',
                           type: 'button',
@@ -3529,6 +3635,115 @@ window.__ModuleLoader__.load({
                       ),
                     ),
                   ),
+
+                  // 行内编辑（v0.3.7：入口就在行上，不藏在「配置与危险操作」里）
+                  editOpen === b.id
+                    ? h(
+                        'div',
+                        {
+                          className: `${NS}-fade`,
+                          style: {
+                            padding: '10px 12px 12px',
+                            borderTop: `1px solid ${BORDER_L1}`,
+                            background: BG_L3,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                          },
+                        },
+                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '名称'),
+                        h(Input, {
+                          value: editName,
+                          onChange: setEditName,
+                          placeholder: 'Bot 名称',
+                          autoFocus: true,
+                        }),
+                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '职责'),
+                        h(Input, {
+                          value: editRole,
+                          onChange: setEditRole,
+                          placeholder: '职责（一句话，决定它怎么干活）',
+                          multiline: true,
+                        }),
+                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '附加说明'),
+                        h(Input, {
+                          value: editNote,
+                          onChange: setEditNote,
+                          placeholder: '附加说明（可选，会写进系统提示）',
+                          multiline: true,
+                        }),
+                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '执行周期'),
+                        h(Input, {
+                          value: editCadence,
+                          onChange: setEditCadence,
+                          placeholder: '执行周期 cron，如 0 0,12 * * *（留空 = 不自动跑）',
+                        }),
+                        h(
+                          'div',
+                          { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+                          ...[
+                            ['每 6 小时', '0 */6 * * *'],
+                            ['每 12 小时', '0 0,12 * * *'],
+                            ['每天 09:00', '0 9 * * *'],
+                            ['不自动跑', ''],
+                          ].map(([label, cron]) =>
+                            h(
+                              'button',
+                              {
+                                key: label,
+                                type: 'button',
+                                onClick: () => setEditCadence(cron),
+                                style: {
+                                  fontSize: 10,
+                                  border: `1px solid ${editCadence === cron ? BRAND : BORDER_L1}`,
+                                  background: 'transparent',
+                                  color: editCadence === cron ? BRAND : LABEL_3,
+                                  borderRadius: R_SM,
+                                  padding: '2px 8px',
+                                  cursor: 'pointer',
+                                },
+                              },
+                              label,
+                            ),
+                          ),
+                        ),
+                        h(
+                          'div',
+                          { style: { display: 'flex', gap: 6, justifyContent: 'flex-end' } },
+                          h(Btn, { onClick: () => setEditOpen(null) }, '取消'),
+                          h(
+                            Btn,
+                            {
+                              kind: 'primary',
+                              disabled: busy || !editName.trim() || !editRole.trim(),
+                              onClick: async () => {
+                                try {
+                                  const r = await fetch('/_dsh-bot/bot/update', {
+                                    method: 'POST',
+                                    headers: { 'content-type': 'application/json' },
+                                    body: JSON.stringify({
+                                      botId: b.id,
+                                      name: editName.trim(),
+                                      role: editRole.trim(),
+                                      systemPromptExtra: editNote,
+                                      cadence: editCadence.trim(),
+                                    }),
+                                  });
+                                  const j = await r.json();
+                                  if (!j?.ok) throw new Error(j?.message || j?.code || '保存失败');
+                                  setEditOpen(null);
+                                  await loadDetail(b.id);
+                                  await refresh();
+                                } catch (err) {
+                                  setErr(String(err?.message ?? err));
+                                }
+                              },
+                            },
+                            '保存',
+                          ),
+                        ),
+                      )
+                    : null,
 
                   // 详情
                   //
@@ -3916,7 +4131,7 @@ window.__ModuleLoader__.load({
 
             // 关闭滚动容器
             ),
-            );
+            ));
           } catch (e) {
             report('render-error', String(e?.message ?? e));
             return null;
@@ -4061,6 +4276,155 @@ window.__ModuleLoader__.load({
           );
         }
 
+        /** 侧边栏图标（只画字形，颜色跟随 currentColor） */
+        function BotSidebarIcon({ size = 16 }) {
+          return h(
+            'svg',
+            { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
+            h('rect', { x: 4, y: 6.5, width: 16, height: 12, rx: 3, stroke: 'currentColor', strokeWidth: 1.6 }),
+            h('circle', { cx: 9, cy: 12.5, r: 1.4, fill: 'currentColor' }),
+            h('circle', { cx: 15, cy: 12.5, r: 1.4, fill: 'currentColor' }),
+            h('path', { d: 'M12 6.5V4', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }),
+          );
+        }
+
+        /** 主面板页：点侧边栏图标后，右侧显示的内容（设置 + 诊断） */
+        function BotPanelPage() {
+          try {
+            const load = React.useCallback(async () => {
+              const r = await fetch('/_dsh-bot/settings', { headers: { accept: 'application/json' } });
+              const j = await r.json();
+              if (!j?.ok) throw new Error(j?.message || '读取失败');
+              return j.value.effective;
+            }, []);
+            const save = React.useCallback(async (next) => {
+              try {
+                await fetch('/_dsh-bot/settings', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ settings: next }),
+                });
+              } catch {
+                /* 下次保存再试 */
+              }
+            }, []);
+            const clearRuns = React.useCallback(async () => {
+              try {
+                const r = await fetch('/_dsh-bot/overview', { headers: { accept: 'application/json' } });
+                const j = await r.json();
+                const first = j?.value?.bots?.[0];
+                if (!first) return;
+                await fetch('/_dsh-bot/runs/clear', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ botId: first.id, confirm: true }),
+                });
+              } catch {
+                /* 忽略 */
+              }
+            }, []);
+
+            return h(
+              'div',
+              { style: { height: '100%', overflowY: 'auto', padding: '20px 24px 40px', fontFamily: FONT, color: LABEL_1 } },
+              h(
+                'div',
+                { style: { maxWidth: 720, margin: '0 auto' } },
+                h('div', { style: { fontSize: 18, fontWeight: 600, marginBottom: 2 } }, 'dsh-bot'),
+                h('div', { style: { fontSize: 11, color: LABEL_3, marginBottom: 14 } }, '常驻 AI 队友 · 设置与诊断'),
+                h(DoctorPanel, null),
+                h('div', { style: { height: 14 } }),
+                h(SettingsView, {
+                  busy: false,
+                  onClose: () => {},
+                  onLoad: load,
+                  onSave: save,
+                  onClearRuns: clearRuns,
+                  hideClose: true,
+                }),
+              ),
+            );
+          } catch (e) {
+            report('main-panel-render-error', String(e?.message ?? e));
+            return null;
+          }
+        }
+
+        /** 首次运行询问：是否在侧边栏显示入口（只问一次） */
+        function SidebarEntryPrompt() {
+          const [show, setShow] = React.useState(() => {
+            try {
+              return !localStorage.getItem('dsh-bot:sidebarPrompted');
+            } catch {
+              return false;
+            }
+          });
+          if (!show) return null;
+          const choose = (enabled) => {
+            try {
+              localStorage.setItem('dsh-bot:sidebarPrompted', '1');
+            } catch {
+              /* 忽略 */
+            }
+            setShow(false);
+            try {
+              sidebarController.apply(enabled);
+            } catch {
+              /* 注册失败不影响保存 */
+            }
+            try {
+              void fetch('/_dsh-bot/settings', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ settings: { sidebarEntry: enabled } }),
+              }).catch(() => {});
+            } catch {
+              /* 忽略 */
+            }
+          };
+          return h(
+            'div',
+            {
+              style: {
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                background: 'rgba(0, 0, 0, 0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: FONT,
+              },
+            },
+            h(
+              'div',
+              {
+                style: {
+                  width: 380,
+                  background: BG_L2,
+                  border: `1px solid ${BORDER_L1}`,
+                  borderRadius: R_LG,
+                  padding: '16px 18px',
+                  color: LABEL_1,
+                  boxShadow: 'var(--dsw-shadow-lv3)',
+                },
+              },
+              h('div', { style: { fontSize: 13, fontWeight: 600, marginBottom: 6 } }, '在侧边栏显示 Bot 入口？'),
+              h(
+                'div',
+                { style: { fontSize: 11, color: LABEL_3, lineHeight: 1.7, marginBottom: 12 } },
+                '开启后左侧边栏会出现 dsh-bot 图标，点一下就在右侧打开 Bot 设置页。之后可在「设置 → Bot → 界面」里随时关闭。',
+              ),
+              h(
+                'div',
+                { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+                h(Btn, { onClick: () => choose(false) }, '先不显示'),
+                h(Btn, { kind: 'primary', onClick: () => choose(true) }, '显示（推荐）'),
+              ),
+            ),
+          );
+        }
+
         function BotSettingsSection() {
           try {
             const save = React.useCallback(async (next) => {
@@ -4181,6 +4545,60 @@ window.__ModuleLoader__.load({
           // 但绝不能让它把 client 的激活状态搞坏
           report('settings-section-error', String(e?.message ?? e));
         }
+
+        // ---------- 主面板 + 侧边栏入口（v0.3.7） ----------
+        // 侧边栏入口可开关：注册/注销都走 slots 的 disposer，切换立即生效。
+        let sidebarDisposer = null;
+        const applySidebarEntry = (enabled) => {
+          try {
+            if (enabled && !sidebarDisposer && ctx?.slots?.inject) {
+              sidebarDisposer = ctx.slots.inject('sidebar.panellist', () =>
+                ctx.slots.register(
+                  {
+                    name: 'sidebar.panellist',
+                    id: 'dsh-bot',
+                    order: 40,
+                    label: () => 'dsh-bot',
+                  },
+                  BotSidebarIcon,
+                ),
+              );
+              report('ok', 'sidebar.panellist registered');
+            } else if (!enabled && sidebarDisposer) {
+              sidebarDisposer();
+              sidebarDisposer = null;
+              report('ok', 'sidebar.panellist removed');
+            }
+          } catch (e) {
+            report('sidebar-entry-error', String(e?.message ?? e));
+          }
+        };
+        sidebarController.apply = applySidebarEntry;
+
+        // 主面板：点侧边栏图标后右侧渲染的页面
+        try {
+          if (ctx?.slots?.inject) {
+            ctx.slots.inject('main', () =>
+              ctx.slots.register({ name: 'main', key: 'dsh-bot' }, BotPanelPage),
+            );
+            report('ok', 'main panel registered');
+          }
+        } catch (e) {
+          report('main-panel-error', String(e?.message ?? e));
+        }
+
+        // 先按默认显示，再按已保存的设置纠正
+        applySidebarEntry(true);
+        (async () => {
+          try {
+            const r = await fetch('/_dsh-bot/settings', { headers: { accept: 'application/json' } });
+            const j = await r.json();
+            const v = j?.value?.effective;
+            if (v && v.sidebarEntry === false) applySidebarEntry(false);
+          } catch {
+            /* 读不到就用默认 */
+          }
+        })();
 
         // ---------- 运行完成通知（全局轮询器） ----------
         //

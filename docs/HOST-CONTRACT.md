@@ -3,7 +3,7 @@
 > 从 `ROADMAP-v0.3.md` §七 拆出：这份是**宿主怎么工作**的知识，不是计划。
 > 与 [LESSONS.md](./LESSONS.md) 的分工：LESSONS 是「我们该守的工程原则」，本文件是「宿主实际长什么样」。
 >
-> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` **0.2.1-rc.x 与 0.2.2-rc.x**（两者工具执行签名不同，见契约 2）。**每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
+> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` **0.2.1-rc.x 与 0.2.2-rc.x（rc.1 / rc.2 均已核对）**。rc.2 相对 rc.1 无破坏性变更：hostProtocolVersion 仍为 4、client slots 未变、本插件 29 个设计令牌全部仍有定义。**每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
 
 ## 背景
 
@@ -73,6 +73,14 @@ execute({
 改 `package.json` 的 `name` 会打断 client graph 对账 → 面板整体消失（10-25 事故，详见 LESSONS #20）。
 
 → 改包名必须同步：`cordis.patch.yml` 的 `name`（模块 import 用）、client graph 的注册标识、市场条目。0.3.3 的挂载缺陷就是这条没同步导致的。
+
+### 7.5 Client 座位：侧边栏入口与主面板（0.2.2-rc.x）
+
+- 侧边栏入口：`ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name:'sidebar.panellist', id, order, label }, IconComponent))`；
+  图标组件只画字形，点行由侧边栏触发 `ctx.layout.selectPanel(id)`。
+- 主面板：`ctx.slots.inject('main', () => ctx.slots.register({ name:'main', key:id }, PageComponent))`，
+  `key` 必须与侧边栏的 `id` 一致；页面自己负责取数与滚动（外层不给滚动容器）。
+- 两者都用 disposer 控制启停，切换不需要重启。
 
 ### 8. 执行器外置与条件工具（0.2.2 起）
 

@@ -146,6 +146,34 @@ if (!code.includes('/settings?botId=') || !code.includes('policyOf')) {
 }
 console.log('✅ 通知轮询按 Bot 读取生效设置（单 Bot 覆盖全局）');
 
+// 9. 侧边栏入口 + 主面板（v0.3.7）
+if (!code.includes('sidebar.panellist') || !code.includes("name: 'main'")) {
+  console.log('❌ 缺少侧边栏入口或主面板注册（v0.3.7 功能）');
+  process.exit(1);
+}
+console.log('✅ 侧边栏入口 / 主面板注册存在');
+
+// 10. Bot 资料编辑路由
+if (!code.includes('/_dsh-bot/bot/update')) {
+  console.log('❌ Bot 资料编辑没有接 /bot/update');
+  process.exit(1);
+}
+console.log('✅ Bot 资料编辑接 /bot/update');
+
+// 11. 执行周期（cron）编辑
+if (!code.includes('执行周期 cron') || !code.includes('cadence: editCadence.trim()')) {
+  console.log('❌ 编辑表单缺少执行周期（cadence）字段');
+  process.exit(1);
+}
+console.log('✅ 编辑表单含执行周期（cron + 预设）');
+
+// 12. 展开面板必须 portal 到 body（否则会被聊天区的 transform 祖先困住）
+if (!code.includes('createPortal') || !code.includes('function portal(')) {
+  console.log('❌ 展开面板没有 portal 到 body：fixed 会被祖先限制，出现遮挡/不滚动');
+  process.exit(1);
+}
+console.log('✅ 展开面板 portal 到 body（视口级浮层）');
+
 // 5. factory 物化
 const fakeReact = {
   createElement: (...a) => ({ type: a[0], props: a[1] }),

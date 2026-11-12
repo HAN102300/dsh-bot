@@ -14,6 +14,7 @@ import type { BotService } from '../service.js';
 import { BotError, type GoalState } from '../types.js';
 import { createGoal, parseCadence, transitionGoal } from '../goal/state.js';
 import { formatBytes } from '../routine/snapshot.js';
+import { isValidCron } from '../scheduler/cron.js';
 
 /**
  * ⚠️ 路径选择说明
@@ -213,6 +214,69 @@ export function makeBotApiRoutes(
               heartbeat,
             },
           });
+        } catch (e) {
+          writeError(res, e);
+        }
+      },
+    },
+
+    // ----------------------------------------------------------
+    // 编辑 Bot 资料（名称 / 职责 / 附加说明）
+    // ----------------------------------------------------------
+    {
+      kind: 'exact',
+      path: `${API_PREFIX}/bot/update`,
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          writeJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        try {
+          const body = (await readJsonBody(req)) as any;
+          const botId = String(body?.botId ?? '').trim();
+          if (!botId) throw new BotError('INVALID_ARGS', '缺少 botId');
+
+          const patch: any = {};
+          if (typeof body?.name === 'string') {
+            const name = body.name.trim();
+            if (!name) throw new BotError('INVALID_ARGS', '名称不能为空');
+            patch.name = name.slice(0, 40);
+          }
+          if (typeof body?.role === 'string') {
+            const role = body.role.trim();
+            if (!role) throw new BotError('INVALID_ARGS', '职责不能为空');
+            patch.role = role.slice(0, 400);
+          }
+          if (typeof body?.systemPromptExtra === 'string') {
+            patch.systemPromptExtra = body.systemPromptExtra.slice(0, 4000);
+          }
+          // 执行周期（cron）属于目标，不属于 BotIdentity；一并在这里改
+          let cadencePatch: string | undefined;
+          if (typeof body?.cadence === 'string') {
+            cadencePatch = body.cadence.trim();
+            if (cadencePatch && !isValidCron(cadencePatch)) {
+              throw new BotError(
+                'INVALID_ARGS',
+                '执行周期必须是合法的 5 段 cron，例如 0 0,12 * * *（留空表示不自动跑）',
+              );
+            }
+          }
+          if (Object.keys(patch).length === 0 && cadencePatch === undefined) {
+            throw new BotError('INVALID_ARGS', '没有可更新的字段');
+          }
+
+          const next = await service.update(botId, patch);
+          if (cadencePatch !== undefined) {
+            const goal = await service.getGoal(botId);
+            if (goal) {
+              await service.saveGoal(botId, {
+                ...goal,
+                cadence: cadencePatch || undefined,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+          writeJson(res, 200, { ok: true, value: next });
         } catch (e) {
           writeError(res, e);
         }

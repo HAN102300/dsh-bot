@@ -229,6 +229,14 @@ describe('SettingsStore 持久化', () => {
     expect((await store.resolve()).notifyOnlyOnDecision).toBe(true);
   });
 
+  it('sidebarEntry 默认开启，写入后生效', async () => {
+    expect((await store.resolve()).sidebarEntry).toBe(true);
+    await store.setGlobal({ sidebarEntry: false });
+    expect((await store.resolve()).sidebarEntry).toBe(false);
+    await store.setGlobal({ sidebarEntry: 'yes' } as never);
+    expect((await store.resolve()).sidebarEntry).toBe(false);
+  });
+
   it('单 Bot 不设置时继承全局', async () => {
     await store.setGlobal({ dailyCny: 8 });
     const s = await store.resolve('bot_y');

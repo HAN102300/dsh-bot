@@ -48,6 +48,10 @@ export interface BotSettings {
   snapshotKeepRecent: number;
   /** 真实执行前自动打快照 */
   snapshotEnabled: boolean;
+
+  // ---------- 界面 ----------
+  /** 在左侧边栏显示 dsh-bot 图标入口（点击打开 Bot 设置页） */
+  sidebarEntry: boolean;
 }
 
 export const DEFAULT_SETTINGS: BotSettings = {
@@ -64,6 +68,7 @@ export const DEFAULT_SETTINGS: BotSettings = {
   costSensitiveScheduling: true,
   snapshotKeepRecent: 10,
   snapshotEnabled: true,
+  sidebarEntry: true,
 };
 
 function readJsonSync<T>(file: string): T | undefined {
@@ -114,6 +119,7 @@ export function sanitizeSettings(raw: any): Partial<BotSettings> {
   bool('autoPropose', raw.autoPropose);
   bool('costSensitiveScheduling', raw.costSensitiveScheduling);
   bool('snapshotEnabled', raw.snapshotEnabled);
+  bool('sidebarEntry', raw.sidebarEntry);
 
   if (['low', 'high', 'max'].includes(raw.reasoningEffort)) {
     out.reasoningEffort = raw.reasoningEffort;
