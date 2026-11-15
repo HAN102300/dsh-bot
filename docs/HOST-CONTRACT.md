@@ -3,7 +3,7 @@
 > 从 `ROADMAP-v0.3.md` §七 拆出：这份是**宿主怎么工作**的知识，不是计划。
 > 与 [LESSONS.md](./LESSONS.md) 的分工：LESSONS 是「我们该守的工程原则」，本文件是「宿主实际长什么样」。
 >
-> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` **0.2.1-rc.x 与 0.2.2-rc.x（rc.1 / rc.2 均已核对）**。rc.2 相对 rc.1 无破坏性变更：hostProtocolVersion 仍为 4、client slots 未变、本插件 29 个设计令牌全部仍有定义。**每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
+> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` **0.2.1-rc.x 与 0.2.2-rc.x（rc.1 / rc.2 均已核对）**。rc.2 相对 rc.1 无破坏性变更：hostProtocolVersion 仍为 4、client slots 未变、本插件 35 个设计令牌全部仍有定义。**每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
 
 ## 背景
 
@@ -93,6 +93,32 @@ execute({
 宿主判定兼容性用 `semver.satisfies(runtime, range, { includePrerelease: true })`（`dsh-app-boot` 的 `evaluatePluginCompatibility`）。普通 semver **不会**把 `0.2.2-rc.1` 算进 `>=0.2.1-rc.1 <0.3.0-0`。
 
 → `engines.dsh` 写 `>=0.2.0-0 <0.3.0-0`，一次覆盖 0.2.x 的 alpha/rc，同时仍挡住 0.3；只写 `>=0.2.x-rc.1` 会在 npm/pnpm 的严格 engine 校验下失效。
+
+### 10. 设计令牌与页面安全区（0.2.2 既有，0.3.8 才用全）
+
+官方设置页的卡片不是「自己画的圆角块」，而是宿主令牌：
+
+```css
+border: .5px solid var(--dsw-alias-settings-card-stroke);
+background: var(--dsw-alias-settings-card-fill);
+border-radius: var(--dsw-radius-lg);
+```
+
+同源插件（`dsh-codearts@1.4.1`）即用这套。0.3.8 起本插件的主页面/详情页也切到它，
+并补用 `--dsw-alias-button-primary-fill/hover`、`label-primary-foreground`、
+`switch-thumb`、`brand-text`、`border-l3`、`label-dimmed`。
+
+**页面安全区**：主面板顶部要加 `--dsh-frame-top-clearance`（运行时注入，必须带 `0px` 兜底）：
+
+```css
+padding: calc(28px + var(--dsh-frame-top-clearance, 0px)) clamp(16px, 2vw, 24px) 48px;
+```
+
+没吃这个变量，标题会和窗口顶栏贴在一起；但它只影响观感，不会崩。
+
+**滚动归属**：`main` 座位的外层不给滚动容器，页面自己负责。单页视图用 `overflow-y:auto`；
+双栏详情页则要让页面本身 `overflow:hidden`，两个子栏各自 `overflow-y:auto` + `min-height:0`，
+否则会出现「左栏跟着整页滚走」或「内容撑开不滚」。
 
 ## 使用方式
 

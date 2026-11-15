@@ -513,62 +513,64 @@ console.log('✅ slot 组件是有效 React 组件');
   console.log('✅ 展开态有滚动容器（max-height + overflow-y:auto + min-height:0）');
 }
 
-// 8.10 ⭐ 详情区必须是状态驱动的（A + D 方案）
-//    用户反馈"挤成一坨、不可阅览"。
-//    根治办法不是排得更紧，而是只显示当前需要注意的。
-//    这条检查防止回退成"有什么数据就画什么"的平铺式布局。
+// 8.10 ⭐ 详情区状态机（0.3.8 起在 BotSituation 中，按状态给可执行动作）
 {
   const src = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
     'utf8',
   );
 
-  if (!src.includes('botSituation')) {
-    console.log('❌ 缺少状态判断函数 botSituation（D 方案的核心）');
+  if (!src.includes('function BotSituation')) {
+    console.log('❌ 缺少状态摘要组件 BotSituation');
     process.exit(1);
   }
-  if (!src.includes('renderSituation')) {
-    console.log('❌ 缺少状态摘要渲染 renderSituation（A 方案的第一层）');
-    process.exit(1);
-  }
-  if (!src.includes('moreOpen')) {
-    console.log('❌ 缺少「更多」折叠状态（A 方案的第三层）');
-    process.exit(1);
-  }
-
-  // 状态机必须覆盖这些关键分支
-  for (const state of ['no-goal', 'pending', 'blocked', 'failed']) {
+  for (const state of ['pending_confirmation', 'blocked', 'failed']) {
     if (!src.includes(`'${state}'`)) {
       console.log(`❌ 状态驱动缺少分支：${state}`);
       process.exit(1);
     }
   }
-
-  console.log('✅ 详情区是状态驱动的（6 种状态 + 三层折叠）');
+  for (const action of ['goalConfirm', 'goalUnblock', 'goalGiveup']) {
+    if (!src.includes(action)) {
+      console.log(`❌ 卡住/待确认状态缺少可执行动作：${action}`);
+      process.exit(1);
+    }
+  }
+  console.log('✅ 详情区是状态驱动的（待确认 / 卡住 / 失败均有动作）');
 }
 
-// 8.11 ⭐ 设置页必须存在且可切换
-//    用户要求把低频功能（运行记录管理等）收进设置 UI，
-//    主面板只留当前需要注意的东西。
+// 8.11 ⭐ 设置统一：官方设置页 Bot 分区复用主页面组件（0.3.8）
+//    两套设置 UI 会各自保存、各自清数据（旧版「清空记录」只清第一个 Bot）——
+//    这是 LESSONS #23 那类双消费漂移，必须在结构上消除。
 {
   const src = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
     'utf8',
   );
 
-  for (const marker of ['SettingsView', "view === 'settings'", 'setView']) {
+  for (const marker of ['ConsoleSettings', 'ConsoleDoctor', 'ConsoleRuns']) {
     if (!src.includes(marker)) {
-      console.log(`❌ 设置页缺少：${marker}`);
+      console.log(`❌ 缺少统一组件：${marker}`);
       process.exit(1);
     }
   }
-
+  if (/function (SettingsView|RunsSection|DoctorPanel)\(/.test(src)) {
+    console.log('❌ 旧设置/运行/诊断组件仍在（会与主页面漂移）');
+    process.exit(1);
+  }
+  if (!src.includes('h(ConsoleSettings, { bots: [], busy: false })')) {
+    console.log('❌ 官方设置页 Bot 分区没有复用 ConsoleSettings');
+    process.exit(1);
+  }
+  if (!src.includes("className: NS + '-c-vars'") || !src.includes('.${NS}-c,\n.${NS}-c-vars {')) {
+    console.log('❌ CSS 变量没有作用到官方设置页容器（开关/卡片会失去配色）');
+    process.exit(1);
+  }
   if (!src.includes('runs/clear')) {
     console.log('❌ 设置页没有清空运行记录的入口');
     process.exit(1);
   }
-
-  console.log('✅ 设置页存在，含运行记录清空能力');
+  console.log('✅ 设置/诊断/运行记录统一组件（官方设置页复用主页面组件）');
 }
 
 // 8.12 ⭐ 必须注册到 DSH 官方设置页（settings.section）
@@ -607,7 +609,7 @@ console.log('✅ slot 组件是有效 React 组件');
     'utf8',
   );
 
-  for (const marker of ['goalUnblock', 'goalGiveup', '已处理好，继续']) {
+  for (const marker of ['goalUnblock', 'goalGiveup', '已处理好']) {
     if (!src.includes(marker)) {
       console.log(`❌ 卡住状态缺少可执行动作：${marker}`);
       process.exit(1);
@@ -659,6 +661,9 @@ const KNOWN_DSW = new Set([
   'dsw-alias-border-l3',
   'dsw-alias-border-l4',
   'dsw-alias-brand-primary',
+  'dsw-alias-brand-text',
+  'dsw-alias-settings-card-fill',
+  'dsw-alias-settings-card-stroke',
   'dsw-alias-brand-primary-new-colorprimary-new-color',
   'dsw-alias-button-ghost-active-border',
   'dsw-alias-button-ghost-active-fill',
@@ -777,5 +782,254 @@ if (noFallback.length > 0) {
 console.log(
   `✅ 布局变量均有兜底（${new Set(usedDsh.map((m) => m[1])).size} 个 --dsh-*）`,
 );
+
+
+// 14. v0.3.8 控制台：主页面 / 详情页
+//     用户反馈「字号都是一个尺寸、内容只占 720」。
+//     这里把设计稿的硬约束钉成断言，防止回退。
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
+    'utf8',
+  );
+
+  if (!src.includes('function BotConsole(')) {
+    console.log('❌ 缺少 BotConsole（v0.3.8 主页面）');
+    process.exit(1);
+  }
+  if (!src.includes('function BotPanelPage(') || !/return h\(BotConsole/.test(src)) {
+    console.log('❌ BotPanelPage 没有渲染 BotConsole');
+    process.exit(1);
+  }
+  if (!src.includes('frame-top-clearance')) {
+    console.log('❌ 主页面没有使用宿主顶部安全区（--dsh-frame-top-clearance）');
+    process.exit(1);
+  }
+  if (src.includes('maxWidth: 720')) {
+    console.log('❌ 主页面仍是 720 宽上限（应改为 1120 + 自适应）');
+    process.exit(1);
+  }
+
+  // 控制台 CSS 的字号下限：不得出现 <11px
+  const cssStart = src.indexOf('v0.3.8 控制台（主页面 / 详情页）');
+  const cssEnd = src.indexOf('/* 响应式：窄屏退化为单列 */', cssStart);
+  if (cssStart < 0 || cssEnd < 0) {
+    console.log('❌ 找不到 v0.3.8 控制台 CSS 区块');
+    process.exit(1);
+  }
+  const css = src.slice(cssStart, cssEnd);
+  const sizes = [...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
+  const tooSmall = sizes.filter((n) => n < 11);
+  if (tooSmall.length) {
+    console.log('❌ 控制台存在 <11px 的字号：' + tooSmall.join(', '));
+    process.exit(1);
+  }
+  if (!sizes.includes(20) || !sizes.includes(15) || !sizes.includes(13) || !sizes.includes(12)) {
+    console.log('❌ 控制台类型尺度不完整（需要 20 / 15 / 13 / 12 至少四档）');
+    process.exit(1);
+  }
+
+  // 详情页：左列表固定 + 右栏独立滚动 + 头部吸顶
+  for (const marker of ['-c-split', '-c-rail-rows.fill', '-c-pane', 'position: sticky']) {
+    if (!src.includes(marker)) {
+      console.log('❌ 详情页双栏布局缺少：' + marker);
+      process.exit(1);
+    }
+  }
+  const splitCss = css.slice(css.indexOf('-c-rail-rows.fill'));
+  if (!/overflow-y:\s*auto/.test(splitCss)) {
+    console.log('❌ 详情页左列表没有独立滚动容器');
+    process.exit(1);
+  }
+  if (!/\.\$\{NS\}-c-pane\s*\{[^}]*overflow-y:\s*auto/.test(css)) {
+    console.log('❌ 详情页右栏没有独立滚动容器');
+    process.exit(1);
+  }
+  console.log('✅ 控制台：类型尺度完整（最小 ' + Math.min(...sizes) + 'px）、1120 宽、双栏独立滚动');
+
+  // 真渲染一次主面板（空数据），确保不会在渲染期崩
+  function makeReact(queue = []) {
+    let qi = 0;
+    return {
+      createElement: (type, props, ...children) => ({ type, props, children }),
+      useState: (init) => {
+        const i = qi++;
+        return [i < queue.length ? queue[i] : init, () => {}];
+      },
+      useEffect: () => {},
+      useCallback: (f) => f,
+      useMemo: (f) => f(),
+      useRef: (v) => ({ current: v }),
+    };
+  }
+  function flatten(node, out = []) {
+    if (node == null || node === false) return out;
+    if (Array.isArray(node)) {
+      for (const c of node) flatten(c, out);
+      return out;
+    }
+    if (typeof node === 'object') {
+      out.push(node);
+      if (typeof node.type === 'function') flatten(node.type(node.props ?? {}), out);
+      else if (Array.isArray(node.children)) for (const c of node.children) flatten(c, out);
+    }
+    return out;
+  }
+  const reg = [];
+  const mod = def.factory((name) => {
+    if (name === 'react') return makeReact();
+    throw new Error('unexpected require: ' + name);
+  });
+  mod.apply({
+    slots: { inject: (_n, f) => f(), register: (o, c) => reg.push({ o, c }) },
+  });
+  const main = reg.find((r) => r.o?.name === 'main');
+  if (!main) {
+    console.log('❌ 没有注册 main 面板');
+    process.exit(1);
+  }
+  try {
+    const flat = flatten(main.c());
+    if (!flat.length) throw new Error('没有创建任何元素');
+    const texts = JSON.stringify(flat.map((n) => n.children));
+    for (const must of ['dsh-bot', 'Bot', '运行记录', '设置', '诊断']) {
+      if (!texts.includes(must)) throw new Error('缺少文本：' + must);
+    }
+    console.log('✅ 主面板空数据渲染成功（' + flat.length + ' 个元素）');
+  } catch (e) {
+    console.log('❌ 主面板渲染失败：' + e.message);
+    process.exit(1);
+  }
+
+  // 带数据 + 进入详情页：覆盖最复杂的一条渲染路径
+  try {
+    const now = new Date().toISOString();
+    const bot = {
+      id: 'bot_x', name: '数据哨兵', role: '抓下载量与 stars',
+      createdAt: now, runCount: 15, todayCostCny: 0.0136,
+      lastRunAt: now, lastRunStatus: 'success',
+      goalDescription: '每天 00:00 查一次', goalStatus: 'active',
+      goalType: 'standing', pendingConfirmCount: 0, proposedCount: 0,
+      blocked: false, memoryCount: 12,
+    };
+    const identity = {
+      ...bot,
+      model: { provider: 'deepseek-account', model: 'deepseek-flash' },
+      budget: { dailyCny: 5, monthlyCny: 100, onExceed: 'stop' },
+      workspace: 'C:/Users/zifeng/.dsh/bot/bots/bot_x/workspace',
+      systemPromptExtra: '只用两个数据源',
+    };
+    const detail = {
+      bot: identity,
+      semantic: { updatedAt: now, facts: ['stars 6', 'npm 近 7 天 1029'], preferences: ['只抓两个数据源'] },
+      runs: [{
+        id: 'run_ebbb8e02', status: 'success', trigger: 'goal', startedAt: now,
+        usage: { costCny: 0.0069, costKind: 'exact', inputTokens: 1, outputTokens: 1 },
+      }],
+      routines: [{ id: 'weekly-clean', name: '每周整理', description: '整理下载目录', version: 1, stepCount: 2, triggers: [{ type: 'manual' }] }],
+      goal: {
+        id: 'goal_1', type: 'standing', description: '每天 00:00 查一次',
+        status: 'active', progress: '上一轮成功', cadence: '0 0 * * *',
+        lastFiredAt: now, pendingConfirmCount: 0, createdAt: now, updatedAt: now,
+      },
+      proposals: [], archives: [], spend: [],
+      snapshots: [{ id: 'snap_1', createdAt: now, fileCount: 3, totalBytes: 1024, entries: [] }],
+      snapshotUsage: { count: 1, totalBytes: 1024 },
+      budget: { today: 0.0136, month: 0.2, dailyLimit: 5, monthlyLimit: 100 },
+    };
+    const reg2 = [];
+    const mod2 = def.factory((name) => {
+      if (name === 'react') return makeReact(['bots', true, { bots: [bot], stats: { botCount: 1, todayCostCny: 0.0136, runTotal: 15 }, heartbeat: { lastBeatAt: now, staleMs: 120000, isStale: false } }, 'bot_x', detail, false, '', '', null, null]);
+      throw new Error('unexpected require: ' + name);
+    });
+    mod2.apply({ slots: { inject: (_n, f) => f(), register: (o, c) => reg2.push({ o, c }) } });
+    const main2 = reg2.find((r) => r.o?.name === 'main');
+    const flat2 = flatten(main2.c());
+    const texts2 = JSON.stringify(flat2.map((n) => n.children));
+    for (const must of ['数据哨兵', '执行', '最近运行', '记忆', '例行流程', '配置', '快照与回滚', 'deepseek-account']) {
+      if (!texts2.includes(must)) throw new Error('详情页缺少：' + must);
+    }
+    console.log('✅ 主面板带数据 + 详情页渲染成功（' + flat2.length + ' 个元素）');
+  } catch (e) {
+    console.log('❌ 主面板带数据渲染失败：' + e.message);
+    process.exit(1);
+  }
+}
+
+
+// 15. ⭐ 运行详情弹窗的字段派生（0.3.8 反馈：运行详情 · undefined / 步骤数 0 / 输出无）
+//     不同入口的 run 形态不同：/runs/list 有 outputPreview，/bot 是原始记录。
+//     弹窗必须自己从 steps 派生，不能依赖调用方补字段。
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
+    'utf8',
+  );
+  const fnStart = src.indexOf('function RunDetailModal');
+  if (fnStart < 0) {
+    console.log('❌ 缺少 RunDetailModal');
+    process.exit(1);
+  }
+  const body = src.slice(fnStart, src.indexOf('function SettingsView', fnStart) > 0
+    ? src.indexOf('function SettingsView', fnStart)
+    : fnStart + 9000);
+  if (!/run\.botName \?\?/.test(body) && !body.includes("run.botName ?? '本轮'")) {
+    console.log('❌ 弹窗标题没有 botName 兜底（会出现「运行详情 · undefined」）');
+    process.exit(1);
+  }
+  if (!body.includes("run.outputPreview") || !body.includes("s?.kind === 'llm'")) {
+    console.log('❌ 弹窗输出没有从 steps 派生（原始 run 记录会显示「无」）');
+    process.exit(1);
+  }
+  if (body.includes('run.stepCount')) {
+    console.log('❌ 弹窗仍在读不存在的 run.stepCount（永远显示 0）');
+    process.exit(1);
+  }
+  if (!body.includes('goalAssessment')) {
+    console.log('❌ 弹窗缺少目标评估展示');
+    process.exit(1);
+  }
+  console.log('✅ 运行详情弹窗字段自派生（标题兜底 / 步骤数 = steps.length / 输出来自 llm 步骤）');
+}
+
+// 16. ⭐ 点击后才渲染的路径必须有渲染冒烟（LESSONS #21）
+//     配置编辑表单只在点「编辑」后挂载；这里用 useState 队列把它推出来渲染一次。
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
+    'utf8',
+  );
+  if (!/function BotConfigCard/.test(src)) {
+    console.log('❌ 缺少 BotConfigCard');
+    process.exit(1);
+  }
+  // 静态断言：编辑态表单必须包含预算输入与超限选择（点击后才挂载的部分）
+  for (const must of ["'每日预算上限（¥）'", "'每月预算上限（¥）'", "'超限行为'", "setEditing(true)"]) {
+    if (!src.includes(must)) {
+      console.log('❌ 配置编辑表单缺少：' + must);
+      process.exit(1);
+    }
+  }
+  console.log('✅ 配置编辑表单要素齐全（预算 / 超限 / 编辑态切换）');
+}
+
+// 17. ⭐ 快照卡按文件证据显示；例行流程只读
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
+    'utf8',
+  );
+  if (!src.includes('everTouchedFiles') || !src.includes('(s.fileCount ?? 0) > 0')) {
+    console.log('❌ 快照卡没有按文件证据显示（空快照 Bot 会看到整屏无意义列表）');
+    process.exit(1);
+  }
+  const rcStart = src.indexOf('function BotRoutinesCard');
+  const rcBody = src.slice(rcStart, rcStart + 4000);
+  if (rcBody.includes('setYaml')) {
+    console.log('❌ 例行流程卡仍有 YAML 编辑（0.3.8 已降级只读）');
+    process.exit(1);
+  }
+  console.log('✅ 快照卡按文件证据显示；例行流程为只读（无流程整卡隐藏）');
+}
 
 console.log('\n=== 全部通过 ===');

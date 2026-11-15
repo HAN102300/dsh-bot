@@ -467,6 +467,393 @@ function injectStyle() {
 }
 .${NS}-row-btn:hover { background: ${HOVER_BG}; color: ${LABEL_1}; }
 .${NS}-row-btn:focus-visible { outline: 2px solid ${FOCUS}; outline-offset: 1px; }
+
+/* ============================================================
+   v0.3.8 控制台（主页面 / 详情页）
+   —— 全部颜色走宿主 settings-card 令牌；字号下限 11px。
+   ============================================================ */
+.${NS}-c,
+.${NS}-c-vars {
+  --c-card: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1));
+  --c-stroke: var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l1));
+  --c-l1: var(--dsw-alias-label-primary);
+  --c-l2: var(--dsw-alias-label-secondary);
+  --c-l3: var(--dsw-alias-label-tertiary);
+  --c-l4: var(--dsw-alias-label-dimmed, var(--dsw-alias-label-tertiary));
+  --c-brand: var(--dsw-alias-brand-primary);
+  --c-brand-text: var(--dsw-alias-brand-text, var(--dsw-alias-brand-primary));
+  --c-ok: var(--dsw-alias-state-success-primary);
+  --c-warn: var(--dsw-alias-state-warn-primary);
+  --c-err: var(--dsw-alias-state-error-primary);
+  --c-l2b: var(--dsw-alias-border-l2);
+  --c-l3b: var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+  --c-hover: var(--dsw-alias-interactive-bg-hover);
+  --c-layer3: var(--dsw-alias-bg-layer-3);
+  --c-r-lg: var(--dsw-radius-lg, 12px);
+  --c-r-md: var(--dsw-radius-md, 8px);
+  --c-r-sm: var(--dsw-radius-sm, 6px);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--c-l1);
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
+  line-height: 20px;
+}
+.${NS}-c *, .${NS}-c *::before, .${NS}-c *::after { box-sizing: border-box; }
+.${NS}-c .num { font-variant-numeric: tabular-nums; }
+
+/* 页面滚动容器 */
+.${NS}-c-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(28px + var(--dsh-frame-top-clearance, 0px)) clamp(16px, 2vw, 24px) 40px;
+}
+.${NS}-c-content { width: 100%; max-width: 1120px; margin: 0 auto; }
+
+/* 滚动条 */
+.${NS}-c-page::-webkit-scrollbar,
+.${NS}-c-pane::-webkit-scrollbar,
+.${NS}-c-rail-rows::-webkit-scrollbar,
+.${NS}-c-scroll::-webkit-scrollbar { width: 10px; }
+.${NS}-c-page::-webkit-scrollbar-thumb,
+.${NS}-c-pane::-webkit-scrollbar-thumb,
+.${NS}-c-rail-rows::-webkit-scrollbar-thumb,
+.${NS}-c-scroll::-webkit-scrollbar-thumb {
+  background: var(--c-l2b);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.${NS}-c-page::-webkit-scrollbar-thumb:hover,
+.${NS}-c-pane::-webkit-scrollbar-thumb:hover,
+.${NS}-c-rail-rows::-webkit-scrollbar-thumb:hover { background-color: var(--c-l3); background-clip: content-box; }
+
+/* 页头 */
+.${NS}-c-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.${NS}-c-head-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.${NS}-c-mark {
+  width: 36px; height: 36px; border-radius: 10px; flex: none;
+  display: grid; place-items: center;
+  color: var(--c-brand);
+  background: color-mix(in srgb, var(--c-brand) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-brand) 28%, transparent);
+}
+.${NS}-c-title { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 600; color: var(--c-l1); }
+.${NS}-c-sub { margin: 1px 0 0; font-size: 13px; line-height: 20px; color: var(--c-l3); }
+.${NS}-c-head-actions { display: flex; align-items: center; gap: 8px; padding-top: 2px; flex: none; }
+
+/* 按钮 */
+.${NS}-c-btn {
+  height: 32px; padding: 0 12px; border-radius: var(--c-r-md);
+  border: 1px solid var(--c-l2b); background: transparent; color: var(--c-l1);
+  font-family: inherit; font-size: 13px; line-height: 20px; font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; white-space: nowrap;
+}
+.${NS}-c-btn:hover:not(:disabled) { background: var(--c-hover); }
+.${NS}-c-btn:disabled { opacity: .45; cursor: not-allowed; }
+.${NS}-c-btn:focus-visible { outline: 2px solid var(--dsw-focus-ring-color); outline-offset: 1px; }
+.${NS}-c-btn.primary { background: var(--dsw-alias-button-primary-fill, var(--c-brand)); border-color: transparent; color: var(--dsw-alias-label-primary-foreground, #1b1210); }
+.${NS}-c-btn.primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover, var(--c-brand)); filter: brightness(1.05); }
+.${NS}-c-btn.ghost { border-color: transparent; color: var(--c-l2); }
+.${NS}-c-btn.ghost:hover:not(:disabled) { color: var(--c-l1); }
+.${NS}-c-btn.sm { height: 26px; padding: 0 9px; font-size: 12px; line-height: 18px; border-radius: var(--c-r-sm); }
+.${NS}-c-btn.icon { width: 28px; padding: 0; }
+.${NS}-c-btn.danger { color: var(--c-err); border-color: color-mix(in srgb, var(--c-err) 38%, transparent); }
+.${NS}-c-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--c-err) 10%, transparent); }
+
+/* Tabs */
+.${NS}-c-tabs { display: flex; align-items: center; gap: 24px; margin-top: 14px; border-bottom: 1px solid var(--c-stroke); }
+.${NS}-c-tab {
+  position: relative; padding: 0 0 10px; font-size: 13px; line-height: 20px;
+  font-weight: 500; color: var(--c-l3); cursor: pointer; background: none; border: 0;
+  font-family: inherit;
+}
+.${NS}-c-tab:hover { color: var(--c-l2); }
+.${NS}-c-tab.on { color: var(--c-l1); }
+.${NS}-c-tab.on::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; border-radius: 2px; background: var(--c-brand);
+}
+.${NS}-c-tabs .grow { flex: 1; }
+.${NS}-c-tabs .meta { font-size: 12px; line-height: 18px; color: var(--c-l3); }
+
+/* 数字条 */
+.${NS}-c-stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px; border: 1px solid var(--c-stroke); background: var(--c-card);
+  border-radius: var(--c-r-lg); overflow: hidden;
+}
+.${NS}-c-stat { padding: 14px 16px; border-left: 1px solid var(--c-stroke); min-width: 0; }
+.${NS}-c-stat:first-child { border-left: 0; }
+.${NS}-c-stat .k { font-size: 11px; line-height: 16px; font-weight: 500; color: var(--c-l3); }
+.${NS}-c-stat .v {
+  margin-top: 2px; font-size: 28px; line-height: 34px; font-weight: 600;
+  letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 4px; color: var(--c-l1);
+}
+.${NS}-c-stat .v small { font-size: 12px; line-height: 18px; font-weight: 400; color: var(--c-l3); letter-spacing: 0; }
+.${NS}-c-stat .h { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
+.${NS}-c-stat .h b { color: var(--c-ok); font-weight: 500; }
+
+/* 卡片 */
+.${NS}-c-card {
+  border: 1px solid var(--c-stroke); background: var(--c-card);
+  border-radius: var(--c-r-lg); min-width: 0;
+}
+.${NS}-c-card + .${NS}-c-card { margin-top: 12px; }
+.${NS}-c-card-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px 0; }
+.${NS}-c-card-title { font-size: 15px; line-height: 22px; font-weight: 600; color: var(--c-l1); }
+.${NS}-c-card-count { font-size: 12px; line-height: 18px; color: var(--c-l3); }
+.${NS}-c-card-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.${NS}-c-card-body { padding: 10px 16px 16px; }
+.${NS}-c-card-body.tight { padding: 8px 16px 12px; }
+
+/* 主工作区 */
+.${NS}-c-ws { display: grid; grid-template-columns: 296px minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+
+/* 左列表 */
+.${NS}-c-rail { display: flex; flex-direction: column; min-height: 0; }
+.${NS}-c-rail-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px; }
+.${NS}-c-rail-head .t { font-size: 15px; line-height: 22px; font-weight: 600; }
+.${NS}-c-rail-head .n { font-size: 12px; color: var(--c-l3); }
+.${NS}-c-rail-head .r { margin-left: auto; }
+.${NS}-c-rail-rows { padding: 0 8px 8px; }
+.${NS}-c-rail-foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-top: 1px solid var(--c-stroke); }
+.${NS}-c-rail-foot .lnk { font-size: 12px; }
+
+.${NS}-c-row {
+  position: relative; padding: 10px; border-radius: var(--c-r-md);
+  display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+  background: transparent; border: 0; width: 100%; text-align: left; color: inherit;
+  font-family: inherit;
+}
+.${NS}-c-row + .${NS}-c-row { margin-top: 2px; }
+.${NS}-c-row:hover { background: var(--c-hover); }
+.${NS}-c-row.on { background: var(--dsw-alias-bg-layer-2); }
+.${NS}-c-row.on::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px;
+  width: 2px; border-radius: 2px; background: var(--c-brand);
+}
+.${NS}-c-row .l1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.${NS}-c-row .nm { font-size: 14px; line-height: 22px; font-weight: 500; color: var(--c-l1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.${NS}-c-row .bdg { margin-left: auto; flex: none; }
+.${NS}-c-row .rl { font-size: 13px; line-height: 20px; color: var(--c-l2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.${NS}-c-row .gl { font-size: 12px; line-height: 18px; color: var(--c-l3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.${NS}-c-row .gl b { color: var(--c-l2); font-weight: 400; }
+.${NS}-c-row .mt { font-size: 12px; line-height: 18px; color: var(--c-l4); }
+.${NS}-c-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+.${NS}-c-dot.ok { background: var(--c-ok); }
+.${NS}-c-dot.warn { background: var(--c-warn); }
+.${NS}-c-dot.err { background: var(--c-err); }
+.${NS}-c-dot.idle { background: var(--c-l4); }
+
+/* 徽标 / 药丸 */
+.${NS}-c-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 8px; border-radius: 999px;
+  background: var(--c-layer3); color: var(--c-l2);
+  font-size: 11px; line-height: 20px; font-weight: 500; white-space: nowrap;
+}
+.${NS}-c-pill.ok { background: color-mix(in srgb, var(--c-ok) 12%, transparent); color: var(--c-ok); }
+.${NS}-c-pill.warn { background: color-mix(in srgb, var(--c-warn) 12%, transparent); color: var(--c-warn); }
+.${NS}-c-pill.brand { background: color-mix(in srgb, var(--c-brand) 12%, transparent); color: var(--c-brand-text); }
+.${NS}-c-pill.muted { background: var(--c-layer3); color: var(--c-l3); }
+.${NS}-c-link { color: var(--c-brand-text); font-size: 13px; line-height: 20px; text-decoration: none; cursor: pointer; background: none; border: 0; font-family: inherit; padding: 0; }
+.${NS}-c-link:hover { text-decoration: underline; }
+.${NS}-c-link.sm { font-size: 12px; line-height: 18px; }
+
+/* 详情头 */
+.${NS}-c-dhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 2px 2px 12px; }
+.${NS}-c-dname { display: flex; align-items: center; gap: 8px; font-size: 18px; line-height: 24px; font-weight: 600; color: var(--c-l1); }
+.${NS}-c-drole { margin-top: 3px; font-size: 13px; line-height: 20px; color: var(--c-l2); }
+.${NS}-c-dactions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* 状态摘要 */
+.${NS}-c-sit {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  border-radius: var(--c-r-md);
+  border: 1px solid color-mix(in srgb, var(--c-ok) 24%, transparent);
+  background: color-mix(in srgb, var(--c-ok) 7%, transparent);
+}
+.${NS}-c-sit.warn { border-color: color-mix(in srgb, var(--c-warn) 26%, transparent); background: color-mix(in srgb, var(--c-warn) 7%, transparent); }
+.${NS}-c-sit.err { border-color: color-mix(in srgb, var(--c-err) 26%, transparent); background: color-mix(in srgb, var(--c-err) 7%, transparent); }
+.${NS}-c-sit.brand { border-color: color-mix(in srgb, var(--c-brand) 26%, transparent); background: color-mix(in srgb, var(--c-brand) 7%, transparent); }
+.${NS}-c-sit .tx { flex: 1; min-width: 0; }
+.${NS}-c-sit .tx b { font-size: 14px; line-height: 22px; font-weight: 500; color: var(--c-l1); }
+.${NS}-c-sit .tx span { display: block; margin-top: 1px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
+
+/* 目标 */
+.${NS}-c-goal { font-size: 14px; line-height: 22px; color: var(--c-l1); }
+.${NS}-c-meter { height: 6px; border-radius: 999px; background: var(--c-layer3); overflow: hidden; margin-top: 12px; }
+.${NS}-c-meter i { display: block; height: 100%; border-radius: 999px; background: var(--c-brand); min-width: 3px; }
+.${NS}-c-meter-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
+.${NS}-c-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.${NS}-c-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; line-height: 18px; padding: 1px 8px; border-radius: 6px;
+  background: var(--c-layer3); color: var(--c-l3);
+}
+.${NS}-c-chip b { font-weight: 500; color: var(--c-l2); }
+
+/* 运行行 */
+.${NS}-c-run {
+  display: grid; grid-template-columns: 6px 40px minmax(0, 1fr) auto auto 12px;
+  align-items: center; gap: 10px; padding: 9px 0;
+  border-top: 1px solid var(--c-stroke);
+  font-size: 12px; line-height: 18px; color: var(--c-l2);
+}
+.${NS}-c-run:first-of-type { border-top: 0; }
+.${NS}-c-run .st { color: var(--c-l1); font-weight: 500; }
+.${NS}-c-run .st.err { color: var(--c-err); }
+.${NS}-c-run .wh { color: var(--c-l3); }
+.${NS}-c-run .cs { color: var(--c-l2); }
+.${NS}-c-run .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--c-l4); }
+.${NS}-c-run .cv { color: var(--c-l4); display: flex; }
+
+/* 记忆 */
+.${NS}-c-mem { display: flex; gap: 8px; padding: 10px 0; border-top: 1px solid var(--c-stroke); }
+.${NS}-c-mem:first-of-type { border-top: 0; }
+.${NS}-c-mem .kd { flex: none; margin-top: 1px; }
+.${NS}-c-mem p { margin: 0; font-size: 13px; line-height: 20px; color: var(--c-l1); }
+.${NS}-c-mem time { display: block; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
+
+/* 空态 */
+.${NS}-c-empty { padding: 12px 14px; border-radius: var(--c-r-md); border: 1px dashed var(--c-l2b); background: color-mix(in srgb, var(--c-l1) 2%, transparent); }
+.${NS}-c-empty p { margin: 0 0 10px; font-size: 13px; line-height: 20px; color: var(--c-l3); }
+
+/* 键值 / 表单 */
+.${NS}-c-kv {
+  display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 12px;
+  align-items: center; padding: 9px 0; border-top: 1px solid var(--c-stroke);
+  font-size: 13px; line-height: 20px;
+}
+.${NS}-c-kv:first-of-type { border-top: 0; }
+.${NS}-c-kv .k { font-size: 12px; color: var(--c-l3); }
+.${NS}-c-kv .v { color: var(--c-l1); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.${NS}-c-kv .v.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--c-l2); }
+.${NS}-c-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.${NS}-c-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.${NS}-c-field.wide { grid-column: 1 / -1; }
+.${NS}-c-field > label { font-size: 12px; line-height: 18px; color: var(--c-l3); }
+.${NS}-c-input {
+  height: 32px; padding: 0 10px; border-radius: var(--c-r-md);
+  border: 1px solid var(--c-l2b); background: var(--dsw-alias-bg-layer-1);
+  color: var(--c-l1); font-size: 13px; line-height: 30px; font-family: inherit;
+  width: 100%; min-width: 0;
+}
+.${NS}-c-input:focus { outline: 2px solid var(--dsw-focus-ring-color); outline-offset: 0; border-color: transparent; }
+textarea.${NS}-c-input { height: auto; padding: 8px 10px; line-height: 20px; resize: vertical; }
+select.${NS}-c-input { appearance: auto; }
+.${NS}-c-seg { display: inline-flex; border: 1px solid var(--c-l2b); border-radius: var(--c-r-md); overflow: hidden; width: max-content; max-width: 100%; }
+.${NS}-c-seg button {
+  height: 30px; padding: 0 12px; border: 0; border-left: 1px solid var(--c-l2b);
+  background: transparent; color: var(--c-l3); font-size: 12px; font-family: inherit; cursor: pointer;
+}
+.${NS}-c-seg button:first-child { border-left: 0; }
+.${NS}-c-seg button.on { background: var(--c-layer3); color: var(--c-l1); font-weight: 500; }
+.${NS}-c-form-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.${NS}-c-danger { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--c-stroke); }
+.${NS}-c-danger .lb { margin-right: auto; font-size: 11px; font-weight: 500; color: var(--c-l4); }
+
+/* 详情页：双栏独立滚动 */
+.${NS}-c-page.split { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 0; }
+.${NS}-c-page.split .${NS}-c-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.${NS}-c-split {
+  flex: 1 1 auto; min-height: 0; display: grid;
+  grid-template-columns: 296px minmax(0, 1fr); gap: 16px; margin-top: 16px;
+}
+.${NS}-c-rail.fill { height: 100%; }
+.${NS}-c-rail-rows.fill { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.${NS}-c-pane { height: 100%; min-width: 0; overflow-y: auto; padding: 0 2px 24px 0; }
+.${NS}-c-pane-head {
+  position: sticky; top: 0; z-index: 3; margin: 0 0 12px; padding: 2px 0 10px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-base) 82%, transparent);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.${NS}-c-pane-head .row { display: flex; align-items: center; gap: 8px; }
+.${NS}-c-back {
+  height: 26px; padding: 0 9px; border-radius: var(--c-r-sm);
+  border: 1px solid var(--c-l2b); background: transparent; color: var(--c-l2);
+  font-size: 12px; font-family: inherit; display: inline-flex; align-items: center; gap: 4px;
+  cursor: pointer; flex: none;
+}
+.${NS}-c-back:hover { background: var(--c-hover); color: var(--c-l1); }
+
+
+/* 开关 / 设置行 */
+.${NS}-c-switch {
+  width: 38px; height: 22px; border-radius: 999px; border: 0; padding: 0;
+  background: var(--c-layer3, var(--dsw-alias-bg-layer-3, rgba(255,255,255,.14))); position: relative; cursor: pointer; flex: none;
+  transition: background .15s ease;
+}
+.${NS}-c-switch .knob {
+  position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 999px; background: var(--dsw-alias-switch-thumb, #ffffff);
+  transition: left .15s ease;
+}
+.${NS}-c-switch.on { background: var(--c-brand, var(--dsw-alias-brand-primary, #e0745c)); }
+.${NS}-c-switch.on .knob { left: 19px; }
+.${NS}-c-switch:disabled { opacity: .45; cursor: not-allowed; }
+
+.${NS}-c-setting { display: flex; align-items: center; gap: 16px; padding: 10px 0; border-top: 1px solid var(--c-stroke); }
+.${NS}-c-setting:first-child { border-top: 0; }
+.${NS}-c-setting-label { font-size: 13px; line-height: 20px; color: var(--c-l1); }
+.${NS}-c-setting-hint { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
+
+/* 提示条 / toast */
+.${NS}-c-alert {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; border-radius: var(--c-r-md);
+  font-size: 13px; line-height: 20px; border: 1px solid var(--c-stroke);
+}
+.${NS}-c-alert.err {
+  color: var(--c-err);
+  border-color: color-mix(in srgb, var(--c-err) 30%, transparent);
+  background: color-mix(in srgb, var(--c-err) 8%, transparent);
+}
+.${NS}-c-alert.ok {
+  color: var(--c-ok);
+  border-color: color-mix(in srgb, var(--c-ok) 28%, transparent);
+  background: color-mix(in srgb, var(--c-ok) 8%, transparent);
+}
+.${NS}-c-alert-x {
+  background: none; border: 0; color: inherit; font-size: 16px; line-height: 1;
+  cursor: pointer; padding: 0 2px; flex: none; opacity: .8; font-family: inherit;
+}
+.${NS}-c-alert-x:hover { opacity: 1; }
+.${NS}-c-toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  z-index: 10001; min-width: 320px; max-width: min(680px, 90vw);
+  box-shadow: var(--dsw-shadow-lv3, none); border-radius: var(--c-r-md);
+}
+.${NS}-c-toast .${NS}-c-alert { background: var(--dsw-alias-bg-layer-2); backdrop-filter: blur(10px); }
+
+/* 弹窗 */
+.${NS}-c-modal {
+  position: fixed; inset: 0; z-index: 9999; padding: 20px;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+}
+.${NS}-c-modal-card {
+  width: min(640px, 94vw); max-height: 85vh; overflow: auto;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--c-stroke); border-radius: var(--c-r-lg);
+  box-shadow: var(--dsw-shadow-lv3, none); padding: 16px;
+  color: var(--c-l1); font-family: var(--dsw-font-family);
+}
+.${NS}-c-modal-card * { font-family: inherit; }
+
+/* 响应式：窄屏退化为单列 */
+@media (max-width: 980px) {
+  .${NS}-c-ws, .${NS}-c-split { grid-template-columns: minmax(0, 1fr); }
+  .${NS}-c-split .${NS}-c-rail { display: none; }
+  .${NS}-c-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .${NS}-c-stat:nth-child(3) { border-left: 0; }
+  .${NS}-c-stat:nth-child(n+3) { border-top: 1px solid var(--c-stroke); }
+}
 `;
   document.head.appendChild(el);
 }
@@ -1363,334 +1750,7 @@ window.__ModuleLoader__.load({
         // compact 形态固定高度：行高约 44px，6 行 + 边距
         const RUNS_COMPACT_HEIGHT = 6 * 44 + 8;
 
-        function RunsSection({ busy }) {
-          const [data, setData] = React.useState(null);
-          const [err, setErr] = React.useState('');
-          const [openRun, setOpenRun] = React.useState(null);
-          const [mode, setMode] = React.useState(() => {
-            try {
-              const v = localStorage.getItem(RUNS_MODE_KEY);
-              return v === 'compact' || v === 'paged' ? v : 'paged';
-            } catch {
-              return 'paged';
-            }
-          });
-          const [page, setPage] = React.useState(0);
-          const [armedRerun, setArmedRerun] = React.useState('');
-          const [rerunMsg, setRerunMsg] = React.useState('');
-          const switchMode = (m) => {
-            setMode(m);
-            setPage(0);
-            try { localStorage.setItem(RUNS_MODE_KEY, m); } catch {}
-          };
 
-          const load = React.useCallback(async () => {
-            try {
-              const o = await fetch('/_dsh-bot/overview', { headers: { accept: 'application/json' } });
-              const oj = await o.json();
-              if (!oj?.ok) throw new Error(oj?.message || '读取失败');
-              const bots = oj.value?.bots ?? [];
-              if (!bots.length) {
-                setData({ bots: [], runs: [], botMap: {} });
-                return;
-              }
-              // 汇总所有 Bot 的最近运行（每 Bot 最多 15 条）
-              const results = await Promise.all(
-                bots.map(async (b) => {
-                  try {
-                    const r = await fetch(
-                      `/_dsh-bot/runs/list?botId=${encodeURIComponent(b.id)}&limit=15`,
-                      { headers: { accept: 'application/json' } },
-                    );
-                    const rj = await r.json();
-                    if (!rj?.ok) return [];
-                    return {
-                      runs: (rj.value?.runs ?? []).map((run) => ({ ...run, botName: b.name, botId: b.id })),
-                      health: rj.value?.health ?? null,
-                      botName: b.name,
-                    };
-                  } catch {
-                    return [];
-                  }
-                }),
-              );
-              const all = results
-                .flatMap((r) => r.runs)
-                .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-              const healths = results.filter((r) => r.health);
-              setData({
-                bots,
-                runs: all.slice(0, 30),
-                healths,
-                avgSuccessRate:
-                  healths.length > 0
-                    ? healths.reduce((s, r) => s + (r.health.successRate ?? 0), 0) / healths.length
-                    : null,
-              });
-              setErr('');
-            } catch (e) {
-              setErr(String(e?.message ?? e));
-            }
-          }, []);
-
-
-          // 失败/熔断/部分成功的运行可直接重跑：产出新 run，旧记录保留。
-          // 沿用两步确认（点一次变「确认重跑」，再点才执行），不引入原生 confirm。
-          const rerun = async (run) => {
-            if (armedRerun !== run.id) {
-              setArmedRerun(run.id);
-              setTimeout(() => setArmedRerun((prev) => (prev === run.id ? '' : prev)), 4000);
-              return;
-            }
-            setArmedRerun('');
-            setRerunMsg('');
-            try {
-              const r = await fetch('/_dsh-bot/run', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ botId: run.botId, confirm: true }),
-              });
-              const j = await r.json();
-              if (!j?.ok) throw new Error(j?.message || j?.code || '重跑失败');
-              await load();
-            } catch (e) {
-              setRerunMsg(`重跑失败：${e?.message ?? e}`);
-            }
-          };
-
-          React.useEffect(() => {
-            void load();
-          }, [load]);
-
-          const fmtTime = (iso) => {
-            if (!iso) return '—';
-            const d = new Date(iso);
-            return d.toLocaleString('zh-CN', { hour12: false });
-          };
-          const statusBadge = (run) => {
-            const map = {
-              success: { tone: 'ok', label: run.dryRun ? '演习' : '成功' },
-              partial: { tone: 'warn', label: '部分成功' },
-              failed: { tone: 'err', label: '失败' },
-              budget_exceeded: { tone: 'err', label: '预算熔断' },
-            };
-            const m = map[run.status] ?? { tone: 'neutral', label: run.status };
-            return h(Badge, { tone: m.tone }, m.label);
-          };
-
-          if (err) {
-            return h('div', { style: { fontSize: 11, color: ERR, padding: '4px 0' } }, `读取失败：${err}`);
-          }
-          if (!data) {
-            return h('div', { style: { fontSize: 11, color: LABEL_3, padding: '4px 0' } }, '正在读取…');
-          }
-          if (!data.runs.length) {
-            return h('div', { style: { fontSize: 11, color: LABEL_3, padding: '4px 0' } }, '还没有运行记录');
-          }
-
-          // ---- 形态切换（segmented 两档） ----
-          const modeBtn = (m, label) =>
-            h(
-              'button',
-              {
-                key: m,
-                type: 'button',
-                onClick: () => switchMode(m),
-                style: {
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  padding: '3px 10px',
-                  borderRadius: R_SM,
-                  background: mode === m ? BRAND : 'transparent',
-                  color: mode === m ? LABEL_FG : LABEL_3,
-                },
-              },
-              label,
-            );
-
-          // ---- 分页计算（paged 形态用） ----
-          const totalPages = Math.max(1, Math.ceil(data.runs.length / RUNS_PAGE_SIZE));
-          const safePage = Math.min(page, totalPages - 1);
-          const visible =
-            mode === 'paged'
-              ? data.runs.slice(safePage * RUNS_PAGE_SIZE, safePage * RUNS_PAGE_SIZE + RUNS_PAGE_SIZE)
-              : data.runs;
-
-          const runRow = (run) =>
-            h(
-              'div',
-              {
-                key: run.id,
-                onClick: () => setOpenRun(run),
-                style: {
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '7px 8px',
-                  borderRadius: R_SM,
-                  cursor: 'pointer',
-                  borderBottom: `1px solid ${BORDER_L1}`,
-                },
-              },
-              statusBadge(run),
-              h(
-                'div',
-                { style: { flex: 1, minWidth: 0 } },
-                h(
-                  'div',
-                  { style: { fontSize: 12, color: LABEL_1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
-                  `${run.botName} · ${run.outputPreview || '(无文本输出)'}`,
-                ),
-                h(
-                  'div',
-                  { style: { fontSize: 10, color: LABEL_3, marginTop: 1 } },
-                  `${fmtTime(run.startedAt)} · ${run.trigger}${run.modelFallback ? ' · 模型已兜底' : ''}`,
-                ),
-              ),
-              h(
-                'div',
-                { style: { textAlign: 'right', flexShrink: 0 } },
-                h('div', { style: { fontSize: 12, color: LABEL_1 } }, fmtCost(run.usage)),
-                h(
-                  'div',
-                  { style: { fontSize: 10, color: run.usage?.costKind === 'free' ? OK : run.usage?.costKind === 'unknown' ? WARN : LABEL_3 } },
-                  run.usage?.costKind === 'free' ? '免费渠道' : run.usage?.costKind === 'unknown' ? '无价目' : '付费',
-                ),
-              ),
-              (() => {
-                const rerunnable = ['failed', 'budget_exceeded', 'partial'].includes(run.status);
-                if (!rerunnable) return null;
-                const armed = armedRerun === run.id;
-                return h(
-                  'button',
-                  {
-                    type: 'button',
-                    onClick: (ev) => {
-                      ev.stopPropagation();
-                      void rerun(run);
-                    },
-                    title: armed
-                      ? '再点一次确认重跑（产出新 run，旧记录保留）'
-                      : '重跑一次',
-                    style: {
-                      border: `1px solid ${armed ? BRAND : BORDER_L1}`,
-                      background: 'transparent',
-                      color: armed ? BRAND : LABEL_3,
-                      borderRadius: R_SM,
-                      fontSize: 10,
-                      padding: '2px 8px',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                    },
-                  },
-                  armed ? '确认重跑' : '重跑',
-                );
-              })(),
-            );
-
-          return h(
-            'div',
-            null,
-            rerunMsg
-              ? h('div', { style: { fontSize: 10, color: ERR, marginBottom: 4 } }, rerunMsg)
-              : null,
-            // ---- 工具条：形态切换 + 计数 ----
-            h(
-              'div',
-              { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 } },
-              h(
-                'div',
-                {
-                  style: {
-                    display: 'inline-flex',
-                    gap: 2,
-                    padding: 2,
-                    borderRadius: R_SM,
-                    background: BG_L3,
-                  },
-                },
-                modeBtn('paged', '分页'),
-                modeBtn('compact', '滚动'),
-              ),
-              h('div', { style: { flex: 1 } }),
-              (() => {
-                const rate = data.avgSuccessRate;
-                if (rate === null || rate === undefined) return null;
-                const pct = Math.round(rate * 100);
-                const tone = pct >= 90 ? OK : pct >= 70 ? WARN : ERR;
-                return h(
-                  'span',
-                  {
-                    title: '近 10 轮成功率（各 Bot 平均）——低于 70% 建议换模型或检查数据源',
-                    style: { fontSize: 10, color: tone, fontWeight: 600, marginRight: 6 },
-                  },
-                  `健康 ${pct}%`,
-                );
-              })(),
-              h('div', { style: { fontSize: 10, color: LABEL_3 } }, `共 ${data.runs.length} 条`),
-            ),
-            // ---- 列表主体 ----
-            h(
-              'div',
-              mode === 'compact'
-                ? { style: { maxHeight: RUNS_COMPACT_HEIGHT, overflowY: 'auto', overflowX: 'hidden' } }
-                : null,
-              visible.map(runRow),
-            ),
-            // ---- 分页器（paged 形态） ----
-            mode === 'paged' && totalPages > 1
-              ? h(
-                  'div',
-                  { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 6 } },
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      disabled: safePage === 0,
-                      onClick: () => setPage(safePage - 1),
-                      style: {
-                        border: 'none', background: 'transparent', cursor: safePage === 0 ? 'default' : 'pointer',
-                        color: safePage === 0 ? LABEL_3 : LABEL_1, fontSize: 12, padding: '2px 8px', opacity: safePage === 0 ? 0.4 : 1,
-                      },
-                    },
-                    '‹',
-                  ),
-                  ...Array.from({ length: totalPages }, (_, i) =>
-                    h(
-                      'button',
-                      {
-                        key: i,
-                        type: 'button',
-                        onClick: () => setPage(i),
-                        style: {
-                          width: 22, height: 22, borderRadius: R_SM, fontSize: 11,
-                          border: 'none', cursor: 'pointer',
-                          background: i === safePage ? BRAND : 'transparent',
-                          color: i === safePage ? LABEL_FG : LABEL_2,
-                        },
-                      },
-                      String(i + 1),
-                    ),
-                  ),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      disabled: safePage >= totalPages - 1,
-                      onClick: () => setPage(safePage + 1),
-                      style: {
-                        border: 'none', background: 'transparent', cursor: safePage >= totalPages - 1 ? 'default' : 'pointer',
-                        color: safePage >= totalPages - 1 ? LABEL_3 : LABEL_1, fontSize: 12, padding: '2px 8px', opacity: safePage >= totalPages - 1 ? 0.4 : 1,
-                      },
-                    },
-                    '›',
-                  ),
-                )
-              : null,
-            openRun ? h(RunDetailModal, { run: openRun, onClose: () => setOpenRun(null) }) : null,
-          );
-        }
 
         /** 单轮运行详情弹窗 */
         function RunDetailModal({ run, onClose }) {
@@ -1707,6 +1767,22 @@ window.__ModuleLoader__.load({
           const costTone =
             u.costKind === 'free' ? OK : u.costKind === 'unknown' ? WARN : LABEL_1;
           const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '—');
+          // ⭐ 0.3.8 修正：不同入口的 run 数据形态不同
+          //   · /runs/list 的 run 有 outputPreview / botName
+          //   · /bot 的 run 是原始记录，两者都没有
+          //   统一在这里派生，弹窗不再依赖调用方补字段。
+          const stepList = Array.isArray(run.steps) ? run.steps : [];
+          const stepCount = stepList.length;
+          const llmOutput = (() => {
+            if (run.outputPreview) return run.outputPreview;
+            for (let i = stepList.length - 1; i >= 0; i--) {
+              const s = stepList[i];
+              if (s?.kind === 'llm' && s?.result?.output) return String(s.result.output);
+            }
+            return '';
+          })();
+          const assessment = run.goalAssessment;
+          const title = '运行详情 · ' + (run.botName ?? '本轮');
           return h(
             'div',
             {
@@ -1732,7 +1808,7 @@ window.__ModuleLoader__.load({
               h(
                 'div',
                 { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 } },
-                h('div', { style: { fontSize: 14, fontWeight: 600, color: LABEL_1, flex: 1 } }, `运行详情 · ${run.botName}`),
+                h('div', { style: { fontSize: 14, fontWeight: 600, color: LABEL_1, flex: 1 } }, title),
                 h(Badge, { tone: run.dryRun ? 'brand' : 'neutral' }, run.dryRun ? '演习' : '真实执行'),
                 h(
                   'button',
@@ -1749,7 +1825,7 @@ window.__ModuleLoader__.load({
                   ['触发方式', run.trigger],
                   ['开始', fmtTime(run.startedAt)],
                   ['结束', fmtTime(run.endedAt)],
-                  ['步骤数', String(run.stepCount ?? 0)],
+                  ['步骤数', String(stepCount)],
                   ['运行 ID', run.id],
                 ].map(([k, v]) =>
                   h(
@@ -1830,7 +1906,7 @@ window.__ModuleLoader__.load({
                 : null,
               // ---- 运行输出（全文可滚动；markdown 以等宽渲染；文件产物给路径提示） ----
               (() => {
-                const out = run.outputPreview || '';
+                const out = llmOutput;
                 const chars = out.length;
                 // 文件产物识别：输出中引用的本地文件路径（Windows 盘符 / ~/.dsh 常见落点）
                 const FILE_EXT_RE = new RegExp("\\.(md|txt|json|ya?ml|log|csv|html?|tgz|zip|png|jpe?g)$", "i");
@@ -1903,222 +1979,34 @@ window.__ModuleLoader__.load({
                   ),
                 );
               })(),
-            ),
-          );
-        }
-
-        /** 设置视图 */
-        function SettingsView({ busy, onClose, onLoad, onSave, onClearRuns, hideClose }) {
-          const [s, setS] = React.useState(null);
-          const [err, setErr] = React.useState('');
-
-          React.useEffect(() => {
-            let alive = true;
-            (async () => {
-              try {
-                const r = await onLoad();
-                if (alive) setS(r);
-              } catch (e) {
-                if (alive) setErr(String(e?.message ?? e));
-              }
-            })();
-            return () => {
-              alive = false;
-            };
-          }, [onLoad]);
-
-          if (err) {
-            return h(
-              'div',
-              { style: { padding: 12, fontSize: 12, color: ERR } },
-              `读取设置失败：${err}`,
-            );
-          }
-          if (!s) {
-            return h(
-              'div',
-              { style: { padding: 12, fontSize: 12, color: LABEL_3 } },
-              '正在读取设置…',
-            );
-          }
-
-          const patch = (k, v) => {
-            const next = { ...s, [k]: v };
-            setS(next);
-            void onSave(next);
-          };
-
-          const group = (title, children) =>
-            h(
-              'div',
-              { style: { marginBottom: 14 } },
-              h(
-                'div',
-                {
-                  style: {
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: LABEL_2,
-                    marginBottom: 4,
-                    paddingBottom: 4,
-                    borderBottom: `1px solid ${BORDER_L1}`,
-                  },
-                },
-                title,
-              ),
-              ...children,
-            );
-
-          return h(
-            'div',
-            { style: { padding: '4px 0' } },
-
-            // ⭐ 诚实原则：这里的每一项都在下面真正被消费。
-            //    · 通知三项 → client 全局轮询器（apply 内 notify poller）
-            //    · 模型 / 预算 → 每个 Bot 的「配置与危险操作」层
-            //    · 峰谷调度 / 快照策略 → 插件配置（cordis.patch.yml）
-            h(
-              'div',
-              {
-                style: {
-                  fontSize: 11,
-                  color: LABEL_3,
-                  lineHeight: 1.8,
-                  padding: '8px 10px',
-                  borderRadius: R_SM,
-                  background: BG_L3,
-                  marginBottom: 14,
-                },
-              },
-              '模型与预算在每个 Bot 的',
-              h('br'),
-              '「配置与危险操作」层里；峰谷调度与快照策略在插件配置（cordis.patch.yml）。',
-            ),
-
-            group('通知', [
-              h(ToggleRow, {
-                label: '运行完成后系统通知',
-                hint: '轮询检测新完成的运行；首次需在系统弹窗里授权通知权限',
-                value: s.notifySystem !== false,
-                onChange: (v) => patch('notifySystem', v),
-              }),
-              h(ToggleRow, {
-                label: '仅异常时打扰',
-                hint: '开启后自动轮次只有失败/部分成功才响；手动点「执行」的成功结果始终会通知',
-                value: s.notifyOnlyOnDecision !== false,
-                onChange: (v) => patch('notifyOnlyOnDecision', v),
-              }),
-              h(
-                'div',
-                { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' } },
-                h(
-                  'div',
-                  { style: { flex: 1, minWidth: 0 } },
-                  h('div', { style: { fontSize: 12, color: LABEL_1 } }, '免打扰时段'),
-                  h(
+              // ---- 目标评估（0.3.8：这轮对目标产生了什么影响） ----
+              assessment
+                ? h(
                     'div',
-                    { style: { fontSize: 10, color: LABEL_3, marginTop: 2 } },
-                    s.quietHours ? `${s.quietHours.start} – ${s.quietHours.end}（跨午夜支持）` : '未启用',
-                  ),
-                ),
-                s.quietHours
-                  ? h(
-                      'button',
-                      {
-                        type: 'button',
-                        onClick: () => patch('quietHours', null),
-                        style: {
-                          border: 'none', background: 'transparent', cursor: 'pointer',
-                          color: LABEL_2, fontSize: 11, textDecoration: 'underline',
-                        },
-                      },
-                      '关闭',
-                    )
-                  : h(
-                      'button',
-                      {
-                        type: 'button',
-                        onClick: () => patch('quietHours', { start: '22:00', end: '08:00' }),
-                        style: {
-                          border: 'none', background: 'transparent', cursor: 'pointer',
-                          color: BRAND, fontSize: 11, textDecoration: 'underline',
-                        },
-                      },
-                      '启用 22:00–08:00',
+                    { style: { padding: 10, borderRadius: R_MD, border: `1px solid ${BORDER_L1}`, marginTop: 12 } },
+                    h('div', { style: { fontSize: 11, fontWeight: 600, color: LABEL_2, marginBottom: 6 } }, '目标评估'),
+                    h(
+                      'div',
+                      { style: { fontSize: 12, lineHeight: 1.7, color: LABEL_1, whiteSpace: 'pre-wrap' } },
+                      assessment.note || '（本轮没有留下评估说明）',
                     ),
-              ),
-            ]),
-
-            group('界面', [
-              h(ToggleRow, {
-                label: '侧边栏图标入口',
-                hint: '在左侧边栏显示 Bot 图标，点击打开 Bot 设置页；关闭后仍可从设置页的 Bot 分区进入',
-                value: s.sidebarEntry !== false,
-                onChange: (v) => {
-                  patch('sidebarEntry', v);
-                  try {
-                    sidebarController.apply(v);
-                  } catch {
-                    /* 注册失败不影响设置保存 */
-                  }
-                },
-              }),
-            ]),
-
-            group('最近运行', [
-              h(RunsSection, { busy }),
-            ]),
-
-            group('数据', [
-              h(
-                'div',
-                {
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 0',
-                  },
-                },
-                h(
-                  'div',
-                  { style: { flex: 1, minWidth: 0 } },
-                  h(
-                    'div',
-                    { style: { fontSize: 12, color: LABEL_1 } },
-                    '运行记录',
-                  ),
-                  h(
-                    'div',
-                    { style: { fontSize: 10, color: LABEL_3, marginTop: 2 } },
-                    '清空后不可恢复，但目标和记忆保留',
-                  ),
-                ),
-                h(ConfirmBtn, {
-                  label: '清空记录',
-                  confirmLabel: '确认清空？不可恢复',
-                  kind: 'danger',
-                  disabled: busy,
-                  onConfirm: () => onClearRuns(),
-                }),
-              ),
-            ]),
-
-            hideClose
-              ? null
-              : h(
-                  'div',
-                  {
-                    style: {
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      marginTop: 4,
-                    },
-                  },
-                  h(Btn, { onClick: onClose }, '关闭设置'),
-                ),
+                    assessment.nextStep
+                      ? h(
+                          'div',
+                          { style: { fontSize: 11, lineHeight: 1.7, color: LABEL_3, marginTop: 6 } },
+                          '下一步：' + assessment.nextStep,
+                        )
+                      : null,
+                    assessment.needsHuman
+                      ? h('div', { style: { fontSize: 11, color: WARN, marginTop: 6 } }, '⭐ 这轮认为需要你介入')
+                      : null,
+                  )
+                : null,
+            ),
           );
         }
+
+
 
 
         //
@@ -3325,36 +3213,11 @@ window.__ModuleLoader__.load({
                 // 设置页是"另一个房间"，打开时盖住 Bot 列表，
                 // 不再往下堆内容（否则又变成"挤成一坨"）。
                 view === 'settings'
-                  ? h(SettingsView, {
-                      busy,
-                      onClose: () => setView('bots'),
-                      onLoad: async () => {
-                        const r = await fetch('/_dsh-bot/settings', {
-                          headers: { accept: 'application/json' },
-                        });
-                        const j = await r.json();
-                        if (!j?.ok) throw new Error(j?.message || '读取失败');
-                        return j.value.effective;
-                      },
-                      onSave: async (next) => {
-                        try {
-                          await fetch('/_dsh-bot/settings', {
-                            method: 'POST',
-                            headers: { 'content-type': 'application/json' },
-                            body: JSON.stringify({ settings: next }),
-                          });
-                        } catch {
-                          /* 保存失败下次再试 */
-                        }
-                      },
-                      onClearRuns: () => {
-                        const target = detailId
-                          ? bots.find((x) => x.id === detailId)
-                          : bots[0];
-                        if (!target) return;
-                        void act('clearRuns', target);
-                      },
-                    })
+                  ? h(
+                      'div',
+                      { style: { padding: '4px 12px 12px' } },
+                      h(ConsoleSettings, { bots, busy }),
+                    )
                   : null,
 
                 // ===== Bot 列表视图 =====
@@ -4304,143 +4167,7 @@ window.__ModuleLoader__.load({
           }
         }
 
-        /**
-         * DSH 官方设置页里的「Bot」分区。
-         *
-         * 与面板内的设置视图共用同一个 SettingsView，只是外壳不同：
-         *   · 官方设置页：由 shell 提供页签与标题，我们只渲染内容
-         *   · 面板内：自带「关闭设置」按钮
-         *
-         * 这样用户既能从系统设置进，也能从 Bot 面板进——两条路一份实现。
-         */
-        /**
-         * 诊断块（v0.3.5 刀 2）
-         *
-         * 读 GET /_dsh-bot/doctor，展示四层状态 + 一键复制。
-         * 自身任何异常都只显示「诊断不可用」，不拖垮设置页。
-         */
-        function DoctorPanel() {
-          const [report_, setReport] = React.useState(null);
-          const [busy_, setBusy] = React.useState(false);
-          const [err_, setErr] = React.useState('');
-          const [copied, setCopied] = React.useState('');
-          const load = React.useCallback(async () => {
-            setBusy(true);
-            try {
-              const r = await fetch('/_dsh-bot/doctor', { headers: { accept: 'application/json' } });
-              const j = await r.json();
-              if (!j?.ok) throw new Error(j?.message || '读取失败');
-              setReport(j.value);
-              setErr('');
-            } catch (e) {
-              setReport(null);
-              setErr(String(e?.message ?? e));
-            } finally {
-              setBusy(false);
-            }
-          }, []);
-          React.useEffect(() => {
-            void load();
-          }, [load]);
 
-          const toneOf = (level) => (level === 'error' ? ERR : level === 'warn' ? WARN : OK);
-          const copy = async () => {
-            try {
-              await navigator.clipboard.writeText(report_?.text ?? '');
-              setCopied('已复制');
-              setTimeout(() => setCopied(''), 1500);
-            } catch {
-              setCopied('复制失败，请手动选中');
-            }
-          };
-
-          return h(
-            'div',
-            {
-              style: {
-                marginTop: 14,
-                border: `1px solid ${BORDER_L1}`,
-                borderRadius: R_LG,
-                background: BG_L2,
-                padding: '10px 12px',
-              },
-            },
-            h(
-              'div',
-              { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
-              h('div', { style: { flex: 1, fontSize: 12, fontWeight: 600, color: LABEL_1 } }, '诊断'),
-              report_ ? h('span', { style: { fontSize: 10, color: LABEL_3 } }, `v${report_.version ?? '?'}`) : null,
-              h(
-                'button',
-                {
-                  type: 'button',
-                  onClick: load,
-                  disabled: busy_,
-                  style: {
-                    border: 'none',
-                    cursor: busy_ ? 'default' : 'pointer',
-                    background: 'transparent',
-                    color: BRAND,
-                    fontSize: 11,
-                    padding: '2px 6px',
-                  },
-                },
-                busy_ ? '读取中…' : '刷新',
-              ),
-            ),
-            err_
-              ? h('div', { style: { fontSize: 11, color: ERR } }, `诊断不可用：${err_}`)
-              : !report_
-                ? h('div', { style: { fontSize: 11, color: LABEL_3 } }, '正在读取诊断…')
-                : h(
-                    'div',
-                    null,
-                    ...(report_.checks ?? []).map((c) =>
-                      h(
-                        'div',
-                        { key: c.id, style: { display: 'flex', gap: 8, padding: '4px 0', alignItems: 'flex-start' } },
-                        h('span', {
-                          style: {
-                            width: 7,
-                            height: 7,
-                            borderRadius: 4,
-                            background: toneOf(c.level),
-                            marginTop: 5,
-                            flexShrink: 0,
-                          },
-                        }),
-                        h(
-                          'div',
-                          { style: { flex: 1, minWidth: 0 } },
-                          h('div', { style: { fontSize: 11, color: LABEL_1, fontWeight: 500 } }, c.title),
-                          h('div', { style: { fontSize: 10, color: LABEL_3, wordBreak: 'break-word' } }, c.detail),
-                          c.hint
-                            ? h('div', { style: { fontSize: 10, color: c.level === 'ok' ? LABEL_3 : BRAND, marginTop: 1 } }, `下一步：${c.hint}`)
-                            : null,
-                        ),
-                      ),
-                    ),
-                    h(
-                      'button',
-                      {
-                        type: 'button',
-                        onClick: copy,
-                        style: {
-                          marginTop: 8,
-                          border: `1px solid ${BORDER_L1}`,
-                          background: 'transparent',
-                          color: LABEL_2,
-                          borderRadius: R_SM,
-                          fontSize: 11,
-                          padding: '3px 10px',
-                          cursor: 'pointer',
-                        },
-                      },
-                      copied || '复制诊断',
-                    ),
-                  ),
-          );
-        }
 
         /** 侧边栏图标（只画字形，颜色跟随 currentColor） */
         function BotSidebarIcon({ size = 16 }) {
@@ -4454,62 +4181,2054 @@ window.__ModuleLoader__.load({
           );
         }
 
+
+        // ============================================================
+        // v0.3.8 控制台
+        //
+        // 设计稿：docs/mock/v038-main.html / v038-detail.html
+        // 约定：
+        //   · 主视图 = 概览（状态 / 目标 / 运行 / 记忆）
+        //   · 详情页 = 独立视图，左列表固定 + 右详情独立滚动
+        //   · 所有颜色走宿主设计令牌；正文 13px，最小 11px
+        // ============================================================
+
+        const CONSOLE_TABS = [
+          ['bots', 'Bot'],
+          ['runs', '运行记录'],
+          ['settings', '设置'],
+          ['doctor', '诊断'],
+        ];
+
+        const cpost = async (path, body) => {
+          try {
+            const r = await fetch('/_dsh-bot' + path, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(body ?? {}),
+            });
+            return await r.json();
+          } catch (e) {
+            return { ok: false, message: String(e?.message || e) };
+          }
+        };
+
+        const cget = async (path) => {
+          const r = await fetch('/_dsh-bot' + path, {
+            headers: { accept: 'application/json' },
+          });
+          return r.json();
+        };
+
+        /** 人话版 cron（复用 0.3.7 的纯函数） */
+        const cCadenceText = (cron) => {
+          if (!cron) return '不自动执行';
+          const p = parseCadence(cron);
+          return describeCadence(p.mode, p.hours, p.time, p.days, p.custom);
+        };
+
+        /** 金额：<1 元保留 4 位（¥0.0136），否则 2 位 */
+        const cMoney = (n) =>
+          Number.isFinite(n) ? (n < 1 ? '¥' + n.toFixed(4) : '¥' + n.toFixed(2)) : '¥0';
+
+        /** 紧凑时间：今天 00:00 / 11-13 00:00 */
+        const cWhen = (iso) => {
+          if (!iso) return '—';
+          const d = new Date(iso);
+          if (!Number.isFinite(d.getTime())) return '—';
+          const now = new Date();
+          const hh = String(d.getHours()).padStart(2, '0');
+          const mm = String(d.getMinutes()).padStart(2, '0');
+          const sameDay =
+            d.getFullYear() === now.getFullYear() &&
+            d.getMonth() === now.getMonth() &&
+            d.getDate() === now.getDate();
+          if (sameDay) return '今天 ' + hh + ':' + mm;
+          return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + hh + ':' + mm;
+        };
+
+        const cTriggerText = (t) =>
+          t === 'goal' ? '目标轮' : t === 'schedule' ? '定时' : t === 'manual' ? '手动' : t || '—';
+
+        /** Bot 列表行的状态点 / 徽标 */
+        const cBotBadge = (b) => {
+          if (b?.blocked) return { dot: 'err', tone: 'err', text: '卡住了' };
+          if (b?.pendingConfirmCount > 0) return { dot: 'warn', tone: 'warn', text: '待确认' };
+          if (b?.lastRunStatus === 'failed' || b?.lastRunStatus === 'budget_exceeded')
+            return { dot: 'err', tone: 'err', text: statusText(b.lastRunStatus) };
+          if (b?.lastRunStatus === 'success') return { dot: 'ok', tone: 'ok', text: '正常' };
+          if (b?.lastRunStatus === 'partial') return { dot: 'warn', tone: 'warn', text: '部分完成' };
+          return { dot: 'idle', tone: 'muted', text: '空闲' };
+        };
+
+        /**
+         * 统一的 Bot 动作层（HTTP）。
+         *
+         * 和旧 dock 里的 act() 分开：这里只负责「动作 → 结果」，
+         * 不持有 UI 状态，便于两个入口共用同一套语义。
+         */
+        async function runBotAction(kind, bot, extra) {
+          let j;
+          if (kind === 'dry') {
+            j = await cpost('/dry-run', { botId: bot.id });
+            if (j?.ok) {
+              const st = j.value?.status;
+              const blocked = (j.value?.steps || []).filter((s) => s.blocked).length;
+              if (st === 'failed') {
+                return { error: '演习失败：' + (j.value?.error?.message ?? '未知原因') };
+              }
+              return { notice: '先看看完成：' + blocked + ' 步会被拦截，未产生真实影响' };
+            }
+          } else if (kind === 'run') {
+            j = await cpost('/run', { botId: bot.id, confirm: true });
+            if (j?.ok) {
+              const st = j.value?.status;
+              const errMsg = j.value?.error?.message;
+              if (st === 'failed' || st === 'budget_exceeded') {
+                return { error: '执行失败（' + st + '）' + (errMsg ? '：' + errMsg : '') };
+              }
+              if (st === 'partial') {
+                const blocked = (j.value?.steps || []).filter((s) => s.blocked).length;
+                return { notice: '执行部分完成' + (blocked ? '，' + blocked + ' 步被跳过' : '') };
+              }
+              return { notice: '执行完成', value: j.value };
+            }
+            if (j?.code === 'PRECHECK_FAILED') return { error: j.message };
+          } else if (kind === 'snapshot') {
+            j = await cpost('/snapshot', { botId: bot.id });
+            if (j?.ok) return { notice: '已创建快照（' + j.value.fileCount + ' 个文件）' };
+          } else if (kind === 'rollback') {
+            j = await cpost('/rollback', { botId: bot.id, confirm: true, snapshotId: extra?.snapshotId });
+            if (j?.ok) {
+              return {
+                notice: '已回滚：恢复 ' + j.value.restored.length + ' 个，删除 ' + j.value.removed.length + ' 个',
+              };
+            }
+          } else if (kind === 'goalConfirm') {
+            j = await cpost('/goal/confirm', { botId: bot.id, confirm: true, note: extra?.note });
+            if (j?.ok) return { notice: '已确认达成并归档，下面看看建议的下一步' };
+          } else if (kind === 'goalReject') {
+            j = await cpost('/goal/reject', { botId: bot.id, note: extra?.note ?? '还没做完' });
+            if (j?.ok) return { notice: '已驳回，目标回到进行中' };
+          } else if (kind === 'goalUnblock') {
+            j = await cpost('/goal/unblock', { botId: bot.id, note: extra?.note });
+            if (j?.ok) return { notice: '已解除阻塞，目标回到进行中' };
+          } else if (kind === 'goalGiveup') {
+            j = await cpost('/goal/giveup', { botId: bot.id, note: extra?.note });
+            if (j?.ok) return { notice: '已放弃并归档' };
+          } else if (kind === 'goalAccept') {
+            j = await cpost('/goal/accept', { botId: bot.id, goalId: extra?.goalId ?? bot.goalId });
+            if (j?.ok) return { notice: '已接受，Bot 开始守护新目标' };
+          } else if (kind === 'goalDismiss') {
+            j = await cpost('/goal/dismiss', { botId: bot.id });
+            if (j?.ok) return { notice: '已忽略建议' };
+          } else if (kind === 'goalSet') {
+            j = await cpost('/goal/set', {
+              botId: bot.id,
+              description: extra?.description,
+              goalType: extra?.goalType,
+              cadence: extra?.cadence,
+            });
+            if (j?.ok) return { notice: '目标已设定' };
+          } else if (kind === 'botCreate') {
+            j = await cpost('/bot/create', {
+              name: extra?.name,
+              role: extra?.role,
+              goal: extra?.goal,
+              goalType: extra?.goalType,
+              cadence: extra?.cadence,
+            });
+            if (j?.ok) return { notice: '已创建「' + extra?.name + '」', value: j.value };
+          } else if (kind === 'botModel') {
+            j = await cpost('/bot/model', {
+              botId: bot.id,
+              provider: extra?.provider,
+              model: extra?.model,
+              reasoningEffort: extra?.reasoningEffort,
+            });
+            if (j?.ok) return { notice: '模型已更新' };
+          } else if (kind === 'clearRuns') {
+            j = await cpost('/runs/clear', { botId: bot.id, confirm: true });
+            if (j?.ok) return { notice: '已清空 ' + j.value.removed + ' 条运行记录' };
+          } else if (kind === 'botDelete') {
+            j = await cpost('/bot/delete', { botId: bot.id, confirm: true });
+            if (j?.ok) return { notice: '已删除「' + bot.name + '」', deleted: true };
+          } else if (kind === 'botUpdate') {
+            j = await cpost('/bot/update', { botId: bot.id, ...extra });
+            if (j?.ok) return { notice: '已保存', value: j.value };
+          }
+          if (j && !j.ok) return { error: j.message || '操作失败' };
+          return {};
+        }
+
+        // ---------- 基础组件 ----------
+        function CBtn({ children, kind, size, icon, onClick, disabled, title, style }) {
+          const cls = [NS + '-c-btn', kind || '', size || ''].filter(Boolean).join(' ');
+          return h(
+            'button',
+            { type: 'button', className: cls, onClick, disabled, title, style },
+            icon || null,
+            children || null,
+          );
+        }
+
+        function CCard({ children, className, style }) {
+          return h(
+            'div',
+            { className: NS + '-c-card' + (className ? ' ' + className : ''), style },
+            children,
+          );
+        }
+
+        function CCardHead({ title, count, right, children }) {
+          return h(
+            'div',
+            { className: NS + '-c-card-head' },
+            h('span', { className: NS + '-c-card-title' }, title),
+            count != null ? h('span', { className: NS + '-c-card-count num' }, count) : null,
+            children || null,
+            right ? h('span', { className: NS + '-c-card-right' }, right) : null,
+          );
+        }
+
+        function CPill({ tone, children }) {
+          return h('span', { className: NS + '-c-pill ' + (tone || '') }, children);
+        }
+
+        function CLink({ children, onClick, style }) {
+          return h('button', { type: 'button', className: NS + '-c-link', onClick, style }, children);
+        }
+
+        function CTabs({ tab, onTab, meta }) {
+          return h(
+            'div',
+            { className: NS + '-c-tabs' },
+            ...CONSOLE_TABS.map(([id, label]) =>
+              h(
+                'button',
+                {
+                  key: id,
+                  type: 'button',
+                  className: NS + '-c-tab' + (tab === id ? ' on' : ''),
+                  onClick: () => onTab(id),
+                },
+                label,
+              ),
+            ),
+            h('span', { className: 'grow' }),
+            meta ? h('span', { className: 'meta num' }, meta) : null,
+          );
+        }
+
+        function CStat({ k, v, unit, hint }) {
+          return h(
+            'div',
+            { className: NS + '-c-stat' },
+            h('div', { className: 'k' }, k),
+            h('div', { className: 'v num' }, v, unit ? h('small', null, unit) : null),
+            hint ? h('div', { className: 'h' }, hint) : null,
+          );
+        }
+
+        // ---------- 列表 ----------
+        function BotRow({ bot, selected, onClick }) {
+          const bg = cBotBadge(bot);
+          return h(
+            'button',
+            {
+              type: 'button',
+              className: NS + '-c-row' + (selected ? ' on' : ''),
+              onClick,
+            },
+            h(
+              'div',
+              { className: 'l1' },
+              h('span', { className: NS + '-c-dot ' + bg.dot }),
+              h('span', { className: 'nm' }, bot.name),
+              h('span', { className: 'bdg' }, h(CPill, { tone: bg.tone }, bg.text)),
+            ),
+            h('div', { className: 'rl' }, bot.role),
+            bot.goalDescription
+              ? h('div', { className: 'gl' }, '守：', h('b', null, bot.goalDescription))
+              : h('div', { className: 'gl' }, '还没有目标 — 点「设目标」让他知道该守什么'),
+            h(
+              'div',
+              { className: 'mt num' },
+              bot.runCount + ' 次运行 · 上次 ' + fmtAgo(bot.lastRunAt) +
+                (bot.todayCostCny ? ' · ' + cMoney(bot.todayCostCny) : ''),
+            ),
+          );
+        }
+
+        function BotRail({ bots, selectedId, onSelect, onCreate, fill }) {
+          return h(
+            'aside',
+            { className: NS + '-c-card ' + NS + '-c-rail' + (fill ? ' fill' : '') },
+            h(
+              'div',
+              { className: NS + '-c-rail-head' },
+              h('span', { className: 't' }, 'Bot'),
+              h('span', { className: 'n num' }, String(bots.length)),
+              h(
+                'span',
+                { className: 'r' },
+                h(CBtn, {
+                  kind: 'ghost',
+                  size: 'icon',
+                  icon: h(
+                    'svg',
+                    { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none' },
+                    h('path', {
+                      d: 'M12 5v14M5 12h14',
+                      stroke: 'currentColor',
+                      strokeWidth: 1.7,
+                      strokeLinecap: 'round',
+                    }),
+                  ),
+                  onClick: onCreate,
+                  title: '新建 Bot',
+                }),
+              ),
+            ),
+            h(
+              'div',
+              { className: NS + '-c-rail-rows' + (fill ? ' fill' : '') },
+              bots.length === 0
+                ? h(
+                    'div',
+                    { className: NS + '-c-empty', style: { margin: '4px 4px 8px' } },
+                    h('p', null, '还没有 Bot。创建一个，他会带着目标、记忆和工作区常驻。'),
+                    h(CBtn, { size: 'sm', onClick: onCreate }, '新建 Bot'),
+                  )
+                : bots.map((b) =>
+                    h(BotRow, {
+                      key: b.id,
+                      bot: b,
+                      selected: b.id === selectedId,
+                      onClick: () => onSelect(b.id),
+                    }),
+                  ),
+            ),
+            h(
+              'div',
+              { className: NS + '-c-rail-foot' },
+              h(CLink, { onClick: onCreate }, '＋ 新建 Bot'),
+              h(
+                'span',
+                { className: NS + '-c-card-count' },
+                bots.reduce((n, b) => n + (b.pendingConfirmCount || 0) + (b.blocked ? 1 : 0), 0) + ' 个待处理',
+              ),
+            ),
+          );
+        }
+
+        // ---------- 状态摘要 ----------
+        function BotSituation({ bot, detail, act, busy, onForm }) {
+          if (!detail) {
+            return h(
+              'div',
+              { className: NS + '-c-sit', style: { marginBottom: 12 } },
+              h('span', { className: NS + '-c-dot idle', style: { width: 8, height: 8 } }),
+              h('div', { className: 'tx' }, h('b', null, '正在读取这个 Bot…')),
+            );
+          }
+          const goal = detail?.goal;
+          const runs = detail?.runs ?? [];
+          const last = runs[0];
+          const proposals = detail?.proposals ?? [];
+
+          const box = (tone, title, sub, actions) =>
+            h(
+              'div',
+              { className: NS + '-c-sit ' + (tone || ''), style: { marginBottom: 12 } },
+              h('span', {
+                className:
+                  NS + '-c-dot ' +
+                  (tone === 'err' ? 'err' : tone === 'warn' || tone === 'brand' ? 'warn' : 'ok'),
+                style: { width: 8, height: 8 },
+              }),
+              h(
+                'div',
+                { className: 'tx' },
+                h('b', null, title),
+                sub ? h('span', null, sub) : null,
+              ),
+              actions
+                ? h('div', { style: { display: 'flex', gap: 6, flexShrink: 0 } }, ...actions)
+                : null,
+            );
+
+          if (proposals.length > 0) {
+            return box(
+              'brand',
+              '他建议了 ' + proposals.length + ' 个下一步',
+              proposals[0]?.description ?? '接受后他会开始守护新目标',
+              [
+                h(CBtn, {
+                  key: 'a',
+                  size: 'sm',
+                  kind: 'primary',
+                  disabled: busy,
+                  onClick: () => act('goalAccept', bot, { goalId: proposals[0]?.id }),
+                }, '接受'),
+                h(CBtn, {
+                  key: 'd',
+                  size: 'sm',
+                  disabled: busy,
+                  onClick: () => act('goalDismiss', bot),
+                }, '忽略'),
+              ],
+            );
+          }
+          if (goal?.status === 'pending_confirmation') {
+            return box(
+              'warn',
+              '上一轮认为目标达成了，等你确认',
+              goal.progress || goal.description,
+              [
+                h(CBtn, {
+                  key: 'c',
+                  size: 'sm',
+                  kind: 'primary',
+                  disabled: busy,
+                  onClick: () => act('goalConfirm', bot),
+                }, '确认达成'),
+                h(CBtn, {
+                  key: 'r',
+                  size: 'sm',
+                  disabled: busy,
+                  onClick: () => act('goalReject', bot),
+                }, '驳回'),
+              ],
+            );
+          }
+          if (goal?.status === 'blocked') {
+            return box(
+              'err',
+              '他卡住了',
+              goal.progress || '处理完外部条件后，点「已处理好」继续',
+              [
+                h(CBtn, {
+                  key: 'u',
+                  size: 'sm',
+                  kind: 'primary',
+                  disabled: busy,
+                  onClick: () => act('goalUnblock', bot),
+                }, '已处理好'),
+                h(CBtn, {
+                  key: 'g',
+                  size: 'sm',
+                  disabled: busy,
+                  onClick: () => onForm({ kind: 'giveup', botId: bot.id, botName: bot.name }),
+                }, '放弃'),
+              ],
+            );
+          }
+          if (last?.status === 'failed' || last?.status === 'budget_exceeded') {
+            return box(
+              'err',
+              last.status === 'budget_exceeded' ? '预算用完了' : '上次执行失败了',
+              last.error?.message ?? '没有记录到原因',
+              [
+                h(CBtn, {
+                  key: 'd',
+                  size: 'sm',
+                  disabled: busy,
+                  onClick: () => act('dry', bot),
+                }, '先看看'),
+                h(CBtn, {
+                  key: 'r',
+                  size: 'sm',
+                  kind: 'primary',
+                  disabled: busy,
+                  onClick: () => act('run', bot),
+                }, '重跑'),
+              ],
+            );
+          }
+          if (!goal) {
+            return box(
+              'warn',
+              '他还没有目标，不知道该守什么',
+              '可以手动执行，但不会被自动推进',
+              [
+                h(CBtn, {
+                  key: 's',
+                  size: 'sm',
+                  kind: 'primary',
+                  disabled: busy,
+                  onClick: () => onForm({ kind: 'goal', botId: bot.id, botName: bot.name }),
+                }, '设目标'),
+              ],
+            );
+          }
+          if (goal.status === 'achieved' || goal.status === 'abandoned') {
+            return box(
+              'ok',
+              goal.status === 'achieved' ? '目标已达成' : '目标已放弃',
+              goal.progress || '可以在下面「目标」里设一个新的',
+              null,
+            );
+          }
+          return box(
+            'ok',
+            last ? '一切都好：上一轮' + statusText(last.status) + '，用了 ' + fmtCost(last.usage) : '还没有运行过',
+            last
+              ? '上次 ' + cWhen(last.startedAt) + ' · 周期 ' + cCadenceText(goal.cadence)
+              : '点「执行」跑一次，或者等自动周期',
+            null,
+          );
+        }
+
+        // ---------- 目标卡 ----------
+        function BotGoalCard({ detail, busy, onForm, bot }) {
+          if (!detail) {
+            return h(
+              CCard,
+              null,
+              h(CCardHead, { title: '目标' }),
+              h(
+                'div',
+                { className: NS + '-c-card-body' },
+                h('div', { className: NS + '-c-empty' }, h('p', null, '正在读取…')),
+              ),
+            );
+          }
+          const goal = detail?.goal;
+          if (!goal) {
+            return h(
+              CCard,
+              null,
+              h(CCardHead, { title: '目标' }),
+              h(
+                'div',
+                { className: NS + '-c-card-body' },
+                h(
+                  'div',
+                  { className: NS + '-c-empty' },
+                  h('p', null, '还没有目标。目标是 Bot 的「守则」：写清要盯什么、多久看一次。'),
+                  h(CBtn, {
+                    size: 'sm',
+                    kind: 'primary',
+                    disabled: busy,
+                    onClick: () => onForm({ kind: 'goal', botId: bot.id, botName: bot.name }),
+                  }, '设目标'),
+                ),
+              ),
+            );
+          }
+          const tone =
+            goal.status === 'pending_confirmation' ? 'warn' :
+            goal.status === 'blocked' ? 'err' :
+            goal.status === 'achieved' ? 'ok' :
+            goal.status === 'abandoned' ? 'muted' : 'brand';
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '目标',
+              right: h(CLink, {
+                onClick: () => onForm({ kind: 'goal', botId: bot.id, botName: bot.name }),
+              }, '调整'),
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body' },
+              h(
+                'div',
+                { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+                h(CPill, { tone }, goalStatusText(goal.status)),
+                goal.type === 'standing' ? h(CPill, { tone: 'muted' }, '常驻') : null,
+              ),
+              h('div', { className: NS + '-c-goal' }, goal.description),
+              goal.progress
+                ? h('div', { style: { marginTop: 8, fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)' } }, goal.progress)
+                : null,
+              h(
+                'div',
+                { className: NS + '-c-chips' },
+                h('span', { className: NS + '-c-chip' }, '执行周期 ', h('b', null, cCadenceText(goal.cadence))),
+                goal.lastFiredAt ? h('span', { className: NS + '-c-chip' }, '上次自动 ', h('b', null, fmtAgo(goal.lastFiredAt))) : null,
+              ),
+            ),
+          );
+        }
+
+        // ---------- 运行卡 ----------
+        function BotRunsCard({ runs, preview, onAll, onOpen, botName }) {
+          const [page, setPage] = React.useState(0);
+          const pageSize = 5;
+          const total = runs.length;
+          const pages = Math.max(1, Math.ceil(total / pageSize));
+          const safePage = Math.min(page, pages - 1);
+          const view = preview
+            ? runs.slice(0, 4)
+            : runs.slice(safePage * pageSize, safePage * pageSize + pageSize);
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '最近运行',
+              count: '共 ' + total + ' 条',
+              right: preview
+                ? h(CLink, { onClick: onAll }, '全部 →')
+                : h(CBtn, { size: 'sm', onClick: onAll }, '全部'),
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body tight' },
+              total === 0
+                ? h(
+                    'div',
+                    { className: NS + '-c-empty' },
+                    h('p', null, '还没有运行记录。点右上角「执行」跑一次。'),
+                  )
+                : [
+                    ...view.map((r) =>
+                      h(
+                        'div',
+                        {
+                          key: r.id,
+                          className: NS + '-c-run',
+                          style: { cursor: onOpen ? 'pointer' : 'default' },
+                          onClick: onOpen ? () => onOpen(botName ? { ...r, botName } : r) : undefined,
+                        },
+                        h('span', {
+                          className:
+                            NS + '-c-dot ' +
+                            (r.status === 'success' ? 'ok' : r.status === 'failed' ? 'err' : 'warn'),
+                        }),
+                        h('span', { className: 'st' + (r.status === 'success' ? '' : ' err') }, statusText(r.status)),
+                        h('span', { className: 'wh num' }, cWhen(r.startedAt) + ' · ' + cTriggerText(r.trigger)),
+                        h('span', { className: 'cs num' }, fmtCost(r.usage)),
+                        h('span', { className: 'id' }, '#' + String(r.id).slice(0, 12)),
+                        h('span', { className: 'cv' }, h(IconChevron, { size: 12 })),
+                      ),
+                    ),
+                    !preview && total > pageSize
+                      ? h(
+                          'div',
+                          {
+                            key: 'pager',
+                            style: {
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              marginTop: 8,
+                              paddingTop: 10,
+                              borderTop: '1px solid var(--dsw-alias-border-l1)',
+                            },
+                          },
+                          h('span', { className: NS + '-c-card-count num' }, '第 ' + (safePage + 1) + ' / ' + pages + ' 页'),
+                          h(
+                            'div',
+                            { style: { display: 'flex', gap: 6 } },
+                            h(CBtn, { size: 'sm', disabled: safePage === 0, onClick: () => setPage(safePage - 1) }, '上一页'),
+                            h(CBtn, { size: 'sm', disabled: safePage >= pages - 1, onClick: () => setPage(safePage + 1) }, '下一页'),
+                          ),
+                        )
+                      : null,
+                  ],
+            ),
+          );
+        }
+
+        // ---------- 记忆卡 ----------
+        function BotMemoryCard({ semantic, limit, onAll }) {
+          const facts = semantic?.facts ?? [];
+          const prefs = semantic?.preferences ?? [];
+          const rows = [
+            ...facts.map((f) => ({ kind: '事实', text: f })),
+            ...prefs.map((p) => ({ kind: '偏好', text: p })),
+          ];
+          const view = limit ? rows.slice(0, limit) : rows;
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '记忆',
+              count: rows.length ? '共 ' + rows.length + ' 条' : '空',
+              right: onAll && rows.length > view.length ? h(CLink, { onClick: onAll }, '全部 →') : null,
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body tight' },
+              view.length === 0
+                ? h(
+                    'div',
+                    { className: NS + '-c-empty' },
+                    h('p', null, '还没有沉淀下来的事实。跑几轮后，他会记住稳定的结论。'),
+                  )
+                : view.map((m, i) =>
+                    h(
+                      'div',
+                      { key: i, className: NS + '-c-mem' },
+                      h('span', { className: NS + '-c-pill kd' }, m.kind),
+                      h('div', { style: { minWidth: 0 } }, h('p', null, m.text)),
+                    ),
+                  ),
+            ),
+          );
+        }
+
+        // ---------- 概览 ----------
+        function BotOverview({ bot, detail, act, busy, onDetail, onForm, onOpenRun }) {
+          const badge = cBotBadge(bot);
+          return h(
+            'div',
+            null,
+            h(
+              'div',
+              { className: NS + '-c-dhead' },
+              h(
+                'div',
+                null,
+                h(
+                  'div',
+                  { className: NS + '-c-dname' },
+                  bot.name,
+                  h(CPill, { tone: badge.tone }, badge.text),
+                ),
+                h('div', { className: NS + '-c-drole' }, bot.role),
+              ),
+              h(
+                'div',
+                { className: NS + '-c-dactions' },
+                h(
+                  CBtn,
+                  {
+                    kind: 'primary',
+                    icon: h(IconRun, { size: 13 }),
+                    disabled: busy,
+                    onClick: () => act('run', bot),
+                  },
+                  '执行',
+                ),
+                h(CBtn, { onClick: onDetail }, '查看详情'),
+              ),
+            ),
+            h(BotSituation, { bot, detail, act, busy, onForm }),
+            h(BotGoalCard, { bot, detail, busy, onForm }),
+            h(BotRunsCard, { runs: detail?.runs ?? [], preview: true, onAll: onDetail, onOpen: onOpenRun, botName: bot.name }),
+            h(BotMemoryCard, { semantic: detail?.semantic, limit: 2 }),
+          );
+        }
+
+        // ---------- 配置卡（可编辑） ----------
+        function BotConfigCard({ bot, detail, busy, onSave }) {
+          const [editing, setEditing] = React.useState(false);
+          const [name, setName] = React.useState('');
+          const [role, setRole] = React.useState('');
+          const [note, setNote] = React.useState('');
+          const [mode, setMode] = React.useState('none');
+          const [hours, setHours] = React.useState(12);
+          const [time, setTime] = React.useState('09:00');
+          const [days, setDays] = React.useState([1]);
+          const [custom, setCustom] = React.useState('');
+          const [provider, setProvider] = React.useState('');
+          const [modelName, setModelName] = React.useState('');
+          const [daily, setDaily] = React.useState('5');
+          const [monthly, setMonthly] = React.useState('100');
+          const [onExceed, setOnExceed] = React.useState('stop');
+          const [providers, setProviders] = React.useState([]);
+          const [err, setErr] = React.useState('');
+
+          const openEdit = () => {
+            setName(bot.name ?? '');
+            setRole(bot.role ?? '');
+            setNote(bot.systemPromptExtra ?? '');
+            const p = parseCadence(detail?.goal?.cadence);
+            setMode(p.mode);
+            setHours(p.hours);
+            setTime(p.time);
+            setDays(p.days);
+            setCustom(p.custom);
+            setProvider(bot.model?.provider ?? '');
+            setModelName(bot.model?.model ?? '');
+            setDaily(String(bot.budget?.dailyCny ?? 5));
+            setMonthly(String(bot.budget?.monthlyCny ?? 100));
+            setOnExceed(bot.budget?.onExceed ?? 'stop');
+            setErr('');
+            setEditing(true);
+            void (async () => {
+              try {
+                const j = await cget('/models');
+                if (j?.ok) setProviders(j.value?.available ?? []);
+              } catch {
+                /* 拿不到就手填 */
+              }
+            })();
+          };
+
+          const save = async () => {
+            if (!name.trim() || !role.trim()) {
+              setErr('名称和职责不能为空');
+              return;
+            }
+            const d = Number(daily);
+            const m = Number(monthly);
+            if (!Number.isFinite(d) || d <= 0 || d > 1000) {
+              setErr('每日预算需要是 0–1000 之间的数字');
+              return;
+            }
+            if (!Number.isFinite(m) || m < d) {
+              setErr('每月预算不能小于每日预算');
+              return;
+            }
+            const cadence = buildCadence(mode, hours, time, days, custom);
+            const res = await onSave(
+              {
+                name: name.trim(),
+                role: role.trim(),
+                systemPromptExtra: note,
+                cadence,
+                budget: { dailyCny: d, monthlyCny: m, onExceed },
+              },
+              { provider, model: modelName },
+            );
+            if (res?.error) {
+              setErr(res.error);
+              return;
+            }
+            setEditing(false);
+          };
+
+          if (!editing) {
+            const b = detail?.budget;
+            const pct = b?.dailyLimit ? Math.min(100, (b.today / b.dailyLimit) * 100) : 0;
+            return h(
+              CCard,
+              null,
+              h(CCardHead, {
+                title: '配置',
+                right: h(CBtn, { size: 'sm', onClick: openEdit, disabled: busy }, '编辑'),
+              }),
+              h(
+                'div',
+                { className: NS + '-c-card-body' },
+                h(
+                  'div',
+                  { className: NS + '-c-kv' },
+                  h('span', { className: 'k' }, '名称'),
+                  h('span', { className: 'v' }, bot.name),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-kv' },
+                  h('span', { className: 'k' }, '模型'),
+                  h('span', { className: 'v' }, (bot.model?.provider ?? '—') + ' / ' + (bot.model?.model ?? '—')),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-kv' },
+                  h('span', { className: 'k' }, '执行周期'),
+                  h('span', { className: 'v' }, cCadenceText(detail?.goal?.cadence)),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-kv' },
+                  h('span', { className: 'k' }, '预算'),
+                  h(
+                    'span',
+                    { className: 'v' },
+                    '每日 ' + fmtCny(bot.budget?.dailyCny) + ' · 每月 ' + fmtCny(bot.budget?.monthlyCny) +
+                      ' · ' + (bot.budget?.onExceed === 'stop' ? '超限停止' : '超限降级'),
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-kv' },
+                  h('span', { className: 'k' }, '今日已用'),
+                  h(
+                    'span',
+                    { className: 'v num' },
+                    cMoney(b?.today ?? 0) + ' / ' + cMoney(b?.dailyLimit ?? 0) + '（' + pct.toFixed(1) + '%）',
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-kv' },
+                  h('span', { className: 'k' }, '工作区'),
+                  h('span', { className: 'v mono', title: bot.workspace }, bot.workspace),
+                ),
+              ),
+            );
+          }
+
+          const modelsFor = providers.find((x) => x?.provider === provider)?.models ?? [];
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '配置',
+              right: h(CPill, { tone: 'brand' }, '编辑中'),
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body' },
+              h(
+                'div',
+                { className: NS + '-c-form' },
+                h(
+                  'div',
+                  { className: NS + '-c-field' },
+                  h('label', null, '名称'),
+                  h('input', {
+                    className: NS + '-c-input',
+                    value: name,
+                    onChange: (e) => setName(e.target.value),
+                    placeholder: 'Bot 名称',
+                  }),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-field' },
+                  h('label', null, '模型'),
+                  h(
+                    'div',
+                    { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } },
+                    h(
+                      'select',
+                      {
+                        className: NS + '-c-input',
+                        value: provider,
+                        onChange: (e) => {
+                          setProvider(e.target.value);
+                          const first = providers.find((x) => x?.provider === e.target.value)?.models?.[0];
+                          if (first) setModelName(first);
+                        },
+                      },
+                      h('option', { value: provider }, provider || '选择 provider'),
+                      ...providers.filter((x) => x?.provider !== provider).map((x) =>
+                        h('option', { key: x.provider, value: x.provider }, x.provider),
+                      ),
+                    ),
+                    h(
+                      'select',
+                      {
+                        className: NS + '-c-input',
+                        value: modelName,
+                        onChange: (e) => setModelName(e.target.value),
+                      },
+                      h('option', { value: modelName }, modelName || '选择模型'),
+                      ...modelsFor.filter((m) => m !== modelName).map((m) =>
+                        h('option', { key: m, value: m }, m),
+                      ),
+                    ),
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-field wide' },
+                  h('label', null, '职责'),
+                  h('textarea', {
+                    className: NS + '-c-input',
+                    rows: 2,
+                    value: role,
+                    onChange: (e) => setRole(e.target.value),
+                    placeholder: '一句话，决定他该怎么干活',
+                  }),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-field wide' },
+                  h('label', null, '附加说明（会写进系统提示）'),
+                  h('textarea', {
+                    className: NS + '-c-input',
+                    rows: 3,
+                    value: note,
+                    onChange: (e) => setNote(e.target.value),
+                    placeholder: '可选。稳定的事实、数据源、禁做事项。',
+                  }),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-field wide' },
+                  h('label', null, '执行周期'),
+                  h(
+                    'div',
+                    { className: NS + '-c-seg' },
+                    ...[
+                      ['hours', '每 N 小时'],
+                      ['daily', '每天'],
+                      ['weekly', '每周'],
+                      ['none', '不自动跑'],
+                    ].map(([m, label]) =>
+                      h(
+                        'button',
+                        {
+                          key: m,
+                          type: 'button',
+                          className: mode === m ? 'on' : '',
+                          onClick: () => setMode(m),
+                        },
+                        label,
+                      ),
+                    ),
+                  ),
+                  mode === 'hours'
+                    ? h(
+                        'div',
+                        { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 } },
+                        h(CBtn, { size: 'sm', onClick: () => setHours(Math.max(1, hours - 1)) }, '−'),
+                        h('span', { className: NS + '-c-card-count num', style: { minWidth: 64, textAlign: 'center' } }, '每 ' + hours + ' 小时'),
+                        h(CBtn, { size: 'sm', onClick: () => setHours(Math.min(24, hours + 1)) }, '＋'),
+                        h('span', { className: NS + '-c-card-count' }, '整点触发'),
+                      )
+                    : null,
+                  mode === 'daily' || mode === 'weekly'
+                    ? h(
+                        'div',
+                        { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' } },
+                        h('input', {
+                          type: 'time',
+                          className: NS + '-c-input',
+                          style: { width: 110 },
+                          value: time,
+                          onChange: (e) => setTime(e.target.value || '09:00'),
+                        }),
+                        mode === 'weekly'
+                          ? h(
+                              'div',
+                              { style: { display: 'flex', gap: 4 } },
+                              ...[
+                                [1, '一'], [2, '二'], [3, '三'], [4, '四'], [5, '五'], [6, '六'], [0, '日'],
+                              ].map(([d, label]) =>
+                                h(
+                                  'button',
+                                  {
+                                    key: d,
+                                    type: 'button',
+                                    className: NS + '-c-btn sm' + (days.includes(d) ? ' primary' : ' ghost'),
+                                    onClick: () =>
+                                      setDays((prev) =>
+                                        prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
+                                      ),
+                                  },
+                                  '周' + label,
+                                ),
+                              ),
+                            )
+                          : null,
+                      )
+                    : null,
+                  h('span', { className: NS + '-c-card-count', style: { marginTop: 6 } }, '按宿主机时区触发'),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-field' },
+                  h('label', null, '每日预算上限（¥）'),
+                  h('input', {
+                    className: NS + '-c-input',
+                    type: 'number',
+                    min: 0.01,
+                    max: 1000,
+                    step: 0.5,
+                    value: daily,
+                    onChange: (e) => setDaily(e.target.value),
+                  }),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-field' },
+                  h('label', null, '每月预算上限（¥）'),
+                  h('input', {
+                    className: NS + '-c-input',
+                    type: 'number',
+                    min: 0.01,
+                    step: 1,
+                    value: monthly,
+                    onChange: (e) => setMonthly(e.target.value),
+                  }),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-field' },
+                  h('label', null, '超限行为'),
+                  h(
+                    'select',
+                    {
+                      className: NS + '-c-input',
+                      value: onExceed,
+                      onChange: (e) => setOnExceed(e.target.value),
+                    },
+                    h('option', { value: 'stop' }, '停止运行'),
+                    h('option', { value: 'downgrade' }, '降级到更便宜的模型'),
+                  ),
+                ),
+              ),
+              err ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' } }, err) : null,
+              h(
+                'div',
+                { className: NS + '-c-form-foot' },
+                h(CBtn, { kind: 'ghost', onClick: () => setEditing(false), disabled: busy }, '取消'),
+                h(CBtn, { kind: 'primary', onClick: save, disabled: busy }, busy ? '保存中…' : '保存'),
+              ),
+            ),
+          );
+        }
+
+        // ---------- 例行流程（只读，0.3.8 降级） ----------
+        // YAML 是开发者词汇；创建走对话（routine_save 工具），面板只读 + 删除。
+        function BotRoutinesCard({ bot, routines, busy, onChanged }) {
+          const [confirmId, setConfirmId] = React.useState('');
+          const [err, setErr] = React.useState('');
+          const list = routines ?? [];
+          if (list.length === 0) return null;
+
+          const remove = async (r) => {
+            if (confirmId !== r.id) {
+              setConfirmId(r.id);
+              return;
+            }
+            setConfirmId('');
+            try {
+              const j = await cpost('/routines/remove', { botId: bot.id, routineId: r.id });
+              if (!j?.ok) throw new Error(j?.message || '删除失败');
+              onChanged?.();
+            } catch (e) {
+              setErr(String(e?.message ?? e));
+            }
+          };
+
+          const triggerText = (t) => {
+            const tr = t?.triggers?.[0];
+            if (!tr) return '手动触发';
+            if (tr.type === 'cron') return '定时 · ' + cCadenceText(tr.expression);
+            return '手动触发';
+          };
+
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '例行流程',
+              count: String(list.length),
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body tight' },
+              h(
+                'div',
+                { className: NS + '-c-empty', style: { marginBottom: 8 } },
+                h('p', null, '例行流程是「每次都一模一样的固定步骤」（区别于目标的随机应变）。想加一个：直接在对话里对他说，例如「每周一早上整理下载目录，建成流程」。'),
+              ),
+              list.map((r) =>
+                h(
+                  'div',
+                  { key: r.id, className: NS + '-c-mem', style: { alignItems: 'center' } },
+                  h(
+                    'div',
+                    { style: { flex: 1, minWidth: 0 } },
+                    h('p', null, r.name),
+                    h('time', null, (r.description ? r.description + ' · ' : '') + triggerText(r) + ' · ' + r.stepCount + ' 步'),
+                  ),
+                  h(CBtn, {
+                    size: 'sm',
+                    kind: 'danger',
+                    onClick: () => remove(r),
+                    disabled: busy,
+                  }, confirmId === r.id ? '确认删除？' : '删除'),
+                ),
+              ),
+              err ? h('div', { style: { marginTop: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' } }, err) : null,
+            ),
+          );
+        }
+
+        // ---------- 快照与危险区 ----------
+        // ⭐ 0.3.8：按「文件证据」显示。抓取类 Bot 的快照全是 0 个文件，
+        //   整卡展示只会让人困惑（截图反馈）；只要出现过非空快照（含
+        //   用户后来改了任务、开始写文件），卡片自动恢复完整形态。
+        function BotSnapshotsCard({ bot, detail, busy, act }) {
+          const [confirmRollback, setConfirmRollback] = React.useState('');
+          const [confirmDelete, setConfirmDelete] = React.useState(false);
+          const snaps = detail?.snapshots ?? [];
+          const usage = detail?.snapshotUsage;
+          const fileSnapCount = snaps.filter((s) => (s.fileCount ?? 0) > 0).length;
+          const everTouchedFiles = fileSnapCount > 0;
+          if (!everTouchedFiles) {
+            return h(
+              CCard,
+              null,
+              h(CCardHead, { title: '快照与回滚', right: h(CPill, { tone: 'muted' }, '未启用') }),
+              h(
+                'div',
+                { className: NS + '-c-card-body' },
+                h('div', { className: NS + '-c-empty' }, h('p', null, '这个 Bot 到目前没有写过任何文件，快照与回滚用不上。等它开始产出或修改文件后，这里会自动出现回滚能力。')),
+                h(
+                  'div',
+                  { className: NS + '-c-danger' },
+                  h('span', { className: 'lb' }, '危险操作 · 不可恢复'),
+                  h(
+                    CBtn,
+                    {
+                      size: 'sm',
+                      kind: 'danger',
+                      disabled: busy,
+                      onClick: () => {
+                        if (!confirmDelete) {
+                          setConfirmDelete(true);
+                          return;
+                        }
+                        setConfirmDelete(false);
+                        act('botDelete', bot);
+                      },
+                    },
+                    confirmDelete ? '确认删除？不可恢复' : '删除这个 Bot',
+                  ),
+                ),
+              ),
+            );
+          }
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '快照与回滚',
+              count: usage ? usage.count + ' 个快照 · ' + Math.round((usage.bytes || 0) / 1024) + ' KB' : String(snaps.length) + ' 个快照',
+              right: h(CBtn, { size: 'sm', disabled: busy, onClick: () => act('snapshot', bot) }, '打快照'),
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body tight' },
+              snaps.length === 0
+                ? h('div', { className: NS + '-c-empty' }, h('p', null, '还没有快照。真实执行前会自动打一个；也可以现在手动打一个。'))
+                : snaps.filter((s) => (s.fileCount ?? 0) > 0).slice(0, 8).map((s) =>
+                    h(
+                      'div',
+                      { key: s.id, className: NS + '-c-run', style: { gridTemplateColumns: '6px minmax(0,1fr) auto auto' } },
+                      h('span', { className: NS + '-c-dot ok' }),
+                      h(
+                        'span',
+                        { style: { color: 'var(--dsw-alias-label-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+                        (s.note || (s.runId ? '运行前自动快照' : '手动快照')) + ' · ' + cWhen(s.createdAt),
+                      ),
+                      h('span', { className: 'id' }, s.fileCount + ' 个文件 · ' + Math.round((s.totalBytes || 0) / 1024) + ' KB'),
+                      h(
+                        CBtn,
+                        {
+                          size: 'sm',
+                          kind: confirmRollback === s.id ? 'danger' : undefined,
+                          disabled: busy,
+                          onClick: () => {
+                            if (confirmRollback !== s.id) {
+                              setConfirmRollback(s.id);
+                              return;
+                            }
+                            setConfirmRollback('');
+                            act('rollback', bot, { snapshotId: s.id });
+                          },
+                        },
+                        confirmRollback === s.id ? '确认回滚？' : '回滚',
+                      ),
+                    ),
+                  ),
+              h(
+                'div',
+                { className: NS + '-c-danger' },
+                h('span', { className: 'lb' }, '危险操作 · 不可恢复'),
+                h(
+                  CBtn,
+                  {
+                    size: 'sm',
+                    kind: 'danger',
+                    disabled: busy,
+                    onClick: () => {
+                      if (!confirmDelete) {
+                        setConfirmDelete(true);
+                        return;
+                      }
+                      setConfirmDelete(false);
+                      act('botDelete', bot);
+                    },
+                  },
+                  confirmDelete ? '确认删除？不可恢复' : '删除这个 Bot',
+                ),
+              ),
+            ),
+          );
+        }
+
+        // ---------- 详情页 ----------
+        function BotDetailPane({ bot, detail, act, busy, onBack, onForm, onSaveConfig, onChanged, onAllRuns, onOpenRun }) {
+          const badge = cBotBadge(bot);
+          // 列表摘要不含模型 / 预算 / 工作区；配置卡必须吃完整 identity
+          const full = detail?.bot ?? bot;
+          return h(
+            'section',
+            { className: NS + '-c-pane' },
+            h(
+              'header',
+              { className: NS + '-c-pane-head' },
+              h(
+                'div',
+                { className: 'row' },
+                h('button', { type: 'button', className: NS + '-c-back', onClick: onBack }, '← 概览'),
+                h('span', { className: NS + '-c-dname' }, bot.name),
+                h(CPill, { tone: badge.tone }, badge.text),
+                h(
+                  'div',
+                  { className: NS + '-c-dactions', style: { marginLeft: 'auto' } },
+                  h(
+                    CBtn,
+                    {
+                      kind: 'primary',
+                      disabled: busy,
+                      icon: h(IconRun, { size: 13 }),
+                      onClick: () => act('run', bot),
+                    },
+                    '执行',
+                  ),
+                ),
+              ),
+              h('div', { className: NS + '-c-drole' }, bot.role),
+            ),
+            h(BotSituation, { bot, detail, act, busy, onForm }),
+            h(BotGoalCard, { bot, detail, busy, onForm }),
+            h(BotRunsCard, { runs: detail?.runs ?? [], preview: false, onAll: onAllRuns, onOpen: onOpenRun, botName: bot.name }),
+            h(BotMemoryCard, { semantic: detail?.semantic }),
+            h(BotRoutinesCard, { bot, routines: detail?.routines ?? [], busy, onChanged }),
+            h(BotConfigCard, { bot: full, detail, busy, onSave: onSaveConfig }),
+            h(BotSnapshotsCard, { bot: full, detail, busy, act }),
+          );
+        }
+
+        // ---------- 运行记录 tab ----------
+        function ConsoleRuns({ bots, busy, onOpenRun }) {
+          const [runs, setRuns] = React.useState(null);
+          const [filter, setFilter] = React.useState('all');
+          const [page, setPage] = React.useState(0);
+          const [err, setErr] = React.useState('');
+          const pageSize = 10;
+
+          const load = React.useCallback(async () => {
+            try {
+              const all = [];
+              for (const b of bots) {
+                const j = await cget('/runs/list?botId=' + encodeURIComponent(b.id) + '&limit=20');
+                if (j?.ok) {
+                  for (const r of j.value?.runs ?? []) all.push({ ...r, botName: b.name, botId: b.id });
+                }
+              }
+              all.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+              setRuns(all);
+              setErr('');
+            } catch (e) {
+              setErr(String(e?.message ?? e));
+            }
+          }, [bots]);
+
+          React.useEffect(() => {
+            void load();
+          }, [load]);
+
+          const list = (runs ?? []).filter((r) => filter === 'all' || r.botId === filter);
+          const pages = Math.max(1, Math.ceil(list.length / pageSize));
+          const safe = Math.min(page, pages - 1);
+          const view = list.slice(safe * pageSize, safe * pageSize + pageSize);
+
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '运行记录',
+              count: runs ? '共 ' + list.length + ' 条' : '读取中…',
+              right: h(
+                'div',
+                { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                h(
+                  'select',
+                  {
+                    className: NS + '-c-input',
+                    style: { width: 180 },
+                    value: filter,
+                    onChange: (e) => {
+                      setFilter(e.target.value);
+                      setPage(0);
+                    },
+                  },
+                  h('option', { value: 'all' }, '全部 Bot'),
+                  ...bots.map((b) => h('option', { key: b.id, value: b.id }, b.name)),
+                ),
+                h(CBtn, { size: 'sm', onClick: () => void load(), disabled: busy }, '刷新'),
+              ),
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body tight' },
+              err ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' } }, err) : null,
+              !runs
+                ? h('div', { className: NS + '-c-empty' }, h('p', null, '正在读取运行记录…'))
+                : list.length === 0
+                  ? h('div', { className: NS + '-c-empty' }, h('p', null, '还没有运行记录。'))
+                  : view.map((r) =>
+                      h(
+                        'div',
+                        {
+                          key: r.id,
+                          className: NS + '-c-run',
+                          style: { cursor: 'pointer', gridTemplateColumns: '6px 40px minmax(0,1fr) auto auto auto 12px' },
+                          onClick: () => onOpenRun(r),
+                        },
+                        h('span', {
+                          className:
+                            NS + '-c-dot ' +
+                            (r.status === 'success' ? 'ok' : r.status === 'failed' ? 'err' : 'warn'),
+                        }),
+                        h('span', { className: 'st' + (r.status === 'success' ? '' : ' err') }, statusText(r.status)),
+                        h('span', { className: 'wh num' }, cWhen(r.startedAt) + ' · ' + cTriggerText(r.trigger)),
+                        h('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, r.botName),
+                        h('span', { className: 'cs num' }, fmtCost(r.usage)),
+                        h('span', { className: 'id' }, '#' + String(r.id).slice(0, 8)),
+                        h('span', { className: 'cv' }, h(IconChevron, { size: 12 })),
+                      ),
+                    ),
+              runs && list.length > pageSize
+                ? h(
+                    'div',
+                    { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--dsw-alias-border-l1)' } },
+                    h('span', { className: NS + '-c-card-count num' }, '第 ' + (safe + 1) + ' / ' + pages + ' 页'),
+                    h(
+                      'div',
+                      { style: { display: 'flex', gap: 6 } },
+                      h(CBtn, { size: 'sm', disabled: safe === 0, onClick: () => setPage(safe - 1) }, '上一页'),
+                      h(CBtn, { size: 'sm', disabled: safe >= pages - 1, onClick: () => setPage(safe + 1) }, '下一页'),
+                    ),
+                  )
+                : null,
+            ),
+          );
+        }
+
+        // ---------- 开关 / 设置 ----------
+        function CSwitch({ value, onChange, disabled }) {
+          return h(
+            'button',
+            {
+              type: 'button',
+              role: 'switch',
+              'aria-checked': value ? 'true' : 'false',
+              className: NS + '-c-switch' + (value ? ' on' : ''),
+              onClick: () => onChange(!value),
+              disabled,
+            },
+            h('span', { className: 'knob' }),
+          );
+        }
+
+        function CRow({ label, hint, children }) {
+          return h(
+            'div',
+            { className: NS + '-c-setting' },
+            h(
+              'div',
+              { style: { flex: 1, minWidth: 0 } },
+              h('div', { className: NS + '-c-setting-label' }, label),
+              hint ? h('div', { className: NS + '-c-setting-hint' }, hint) : null,
+            ),
+            children,
+          );
+        }
+
+        function ConsoleSettings({ bots, busy }) {
+          const [s, setS] = React.useState(null);
+          const [err, setErr] = React.useState('');
+          const [notice, setNotice] = React.useState('');
+          const [confirmClear, setConfirmClear] = React.useState(false);
+
+          React.useEffect(() => {
+            void (async () => {
+              try {
+                const j = await cget('/settings');
+                if (!j?.ok) throw new Error(j?.message || '读取失败');
+                setS(j.value?.effective ?? null);
+              } catch (e) {
+                setErr(String(e?.message ?? e));
+              }
+            })();
+          }, []);
+
+          const patch = async (key, value) => {
+            const next = { ...(s ?? {}), [key]: value };
+            setS(next);
+            const j = await cpost('/settings', { settings: { [key]: value } });
+            if (!j?.ok) setErr(j?.message || '保存失败');
+          };
+
+          const clearAll = async () => {
+            if (!confirmClear) {
+              setConfirmClear(true);
+              return;
+            }
+            setConfirmClear(false);
+            let removed = 0;
+            for (const b of bots) {
+              const j = await cpost('/runs/clear', { botId: b.id, confirm: true });
+              if (j?.ok) removed += j.value?.removed ?? 0;
+            }
+            setNotice('已清空 ' + removed + ' 条运行记录');
+          };
+
+          if (err) {
+            return h(CCard, null, h(CCardHead, { title: '设置' }), h('div', { className: NS + '-c-card-body' }, h('div', { style: { color: 'var(--dsw-alias-state-error-primary)', fontSize: 13 } }, err)));
+          }
+          if (!s) {
+            return h(CCard, null, h(CCardHead, { title: '设置' }), h('div', { className: NS + '-c-card-body' }, h('div', { className: NS + '-c-empty' }, h('p', null, '正在读取设置…'))));
+          }
+
+          return h(
+            'div',
+            null,
+            h(
+              CCard,
+              null,
+              h(CCardHead, { title: '通知' }),
+              h(
+                'div',
+                { className: NS + '-c-card-body' },
+                h(CRow, {
+                  label: '运行完成后系统通知',
+                  hint: '轮询新完成的运行；首次需要在系统弹窗里授权通知权限',
+                }, h(CSwitch, {
+                  value: s.notifySystem !== false,
+                  onChange: (v) => patch('notifySystem', v),
+                  disabled: busy,
+                })),
+                h(CRow, {
+                  label: '仅异常时打扰',
+                  hint: '自动轮次只在失败 / 部分成功时提醒；手动点「执行」始终通知',
+                }, h(CSwitch, {
+                  value: s.notifyOnlyOnDecision !== false,
+                  onChange: (v) => patch('notifyOnlyOnDecision', v),
+                  disabled: busy,
+                })),
+                h(
+                  CRow,
+                  {
+                    label: '免打扰时段',
+                    hint: s.quietHours ? s.quietHours.start + ' – ' + s.quietHours.end + '（支持跨午夜）' : '未启用',
+                  },
+                  h(
+                    'div',
+                    { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                    s.quietHours
+                      ? h(
+                          'div',
+                          { style: { display: 'flex', gap: 6 } },
+                          h('input', {
+                            type: 'time',
+                            className: NS + '-c-input',
+                            style: { width: 150 },
+                            value: s.quietHours.start,
+                            onChange: (e) => patch('quietHours', { ...s.quietHours, start: e.target.value || '22:00' }),
+                          }),
+                          h('input', {
+                            type: 'time',
+                            className: NS + '-c-input',
+                            style: { width: 150 },
+                            value: s.quietHours.end,
+                            onChange: (e) => patch('quietHours', { ...s.quietHours, end: e.target.value || '08:00' }),
+                          }),
+                        )
+                      : null,
+                    h(CSwitch, {
+                      value: !!s.quietHours,
+                      onChange: (v) => patch('quietHours', v ? { start: '22:00', end: '08:00' } : null),
+                      disabled: busy,
+                    }),
+                  ),
+                ),
+              ),
+            ),
+            h(
+              CCard,
+              null,
+              h(CCardHead, { title: '界面' }),
+              h(
+                'div',
+                { className: NS + '-c-card-body' },
+                h(CRow, {
+                  label: '侧边栏图标入口',
+                  hint: '在左侧边栏显示 Bot 图标；关闭后仍可从「设置 → 插件 → Bot」进入',
+                }, h(CSwitch, {
+                  value: s.sidebarEntry !== false,
+                  onChange: (v) => {
+                    patch('sidebarEntry', v);
+                    try {
+                      sidebarController.apply(v);
+                    } catch {
+                      /* 注册失败不影响保存 */
+                    }
+                  },
+                  disabled: busy,
+                })),
+              ),
+            ),
+            h(
+              CCard,
+              null,
+              h(CCardHead, { title: '数据' }),
+              h(
+                'div',
+                { className: NS + '-c-card-body' },
+                h(CRow, {
+                  label: '运行记录',
+                  hint: '清空所有 Bot 的运行记录；目标与记忆保留',
+                }, h(CBtn, {
+                  size: 'sm',
+                  kind: 'danger',
+                  onClick: clearAll,
+                  disabled: busy || !bots.length,
+                }, confirmClear ? '确认清空？不可恢复' : '清空记录')),
+                notice ? h('div', { style: { marginTop: 8, fontSize: 12, color: 'var(--dsw-alias-state-success-primary)' } }, notice) : null,
+              ),
+            ),
+          );
+        }
+
+        // ---------- 诊断 tab ----------
+        function ConsoleDoctor() {
+          const [report, setReport] = React.useState(null);
+          const [err, setErr] = React.useState('');
+          const [busy, setBusy] = React.useState(false);
+          const [copied, setCopied] = React.useState('');
+
+          const load = React.useCallback(async () => {
+            setBusy(true);
+            try {
+              const j = await cget('/doctor');
+              if (!j?.ok) throw new Error(j?.message || '读取失败');
+              setReport(j.value);
+              setErr('');
+            } catch (e) {
+              setErr(String(e?.message ?? e));
+            } finally {
+              setBusy(false);
+            }
+          }, []);
+
+          React.useEffect(() => {
+            void load();
+          }, [load]);
+
+          const tone = (level) =>
+            level === 'error'
+              ? 'var(--dsw-alias-state-error-primary)'
+              : level === 'warn'
+                ? 'var(--dsw-alias-state-warn-primary)'
+                : 'var(--dsw-alias-state-success-primary)';
+
+          return h(
+            CCard,
+            null,
+            h(CCardHead, {
+              title: '诊断',
+              count: report ? 'v' + report.version : null,
+              right: h(
+                'div',
+                { style: { display: 'flex', gap: 8 } },
+                h(CBtn, { size: 'sm', onClick: () => void load(), disabled: busy }, busy ? '读取中…' : '刷新'),
+                h(CBtn, {
+                  size: 'sm',
+                  onClick: async () => {
+                    try {
+                      await navigator.clipboard.writeText(report?.text ?? '');
+                      setCopied('已复制');
+                      setTimeout(() => setCopied(''), 1500);
+                    } catch {
+                      setCopied('复制失败');
+                    }
+                  },
+                }, copied || '复制诊断'),
+              ),
+            }),
+            h(
+              'div',
+              { className: NS + '-c-card-body' },
+              err
+                ? h('div', { style: { fontSize: 13, color: 'var(--dsw-alias-state-error-primary)' } }, '诊断不可用：' + err)
+                : !report
+                  ? h('div', { className: NS + '-c-empty' }, h('p', null, '正在读取诊断…'))
+                  : (report.checks ?? []).map((c) =>
+                      h(
+                        'div',
+                        { key: c.id, className: NS + '-c-kv', style: { alignItems: 'flex-start', gridTemplateColumns: '10px minmax(0,1fr)' } },
+                        h('span', {
+                          style: {
+                            width: 8,
+                            height: 8,
+                            borderRadius: 999,
+                            background: tone(c.level),
+                            marginTop: 6,
+                          },
+                        }),
+                        h(
+                          'div',
+                          { style: { minWidth: 0 } },
+                          h('div', { style: { fontSize: 14, lineHeight: '22px', fontWeight: 500 } }, c.title),
+                          h('div', { style: { fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)', wordBreak: 'break-word' } }, c.detail),
+                          c.hint ? h('div', { style: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-brand-text)', marginTop: 2 } }, '下一步：' + c.hint) : null,
+                        ),
+                      ),
+                    ),
+            ),
+          );
+        }
+
+        // ---------- 控制台外壳 ----------
+        function BotConsole() {
+          const [tab, setTab] = React.useState('bots');
+          const [detailView, setDetailView] = React.useState(false);
+          const [data, setData] = React.useState(null);
+          const [sel, setSel] = React.useState(null);
+          const [detail, setDetail] = React.useState(null);
+          const [busy, setBusy] = React.useState(false);
+          const [notice, setNotice] = React.useState('');
+          const [err, setErr] = React.useState('');
+          const [form, setForm] = React.useState(null);
+          const [openRun, setOpenRun] = React.useState(null);
+
+          const bots = data?.bots ?? [];
+          const selected = bots.find((b) => b.id === sel) || bots[0] || null;
+
+          const refresh = React.useCallback(async () => {
+            try {
+              const j = await cget('/overview');
+              if (!j?.ok) throw new Error(j?.message || '读取失败');
+              setData(j.value);
+              const list = j.value?.bots ?? [];
+              setSel((prev) =>
+                prev && list.some((b) => b.id === prev) ? prev : list[0]?.id ?? null,
+              );
+            } catch (e) {
+              setErr(String(e?.message ?? e));
+            }
+          }, []);
+
+          const loadDetail = React.useCallback(async (botId) => {
+            if (!botId) {
+              setDetail(null);
+              return;
+            }
+            try {
+              const j = await cget('/bot?botId=' + encodeURIComponent(botId));
+              if (!j?.ok) throw new Error(j?.message || '读取详情失败');
+              setDetail(j.value);
+            } catch (e) {
+              setErr(String(e?.message ?? e));
+            }
+          }, []);
+
+          React.useEffect(() => {
+            void refresh();
+          }, [refresh]);
+
+          React.useEffect(() => {
+            void loadDetail(selected?.id);
+          }, [selected?.id, loadDetail]);
+
+          React.useEffect(() => {
+            if (!busy || !selected?.id) return;
+            const t = setInterval(() => {
+              void loadDetail(selected.id);
+            }, 3000);
+            return () => clearInterval(t);
+          }, [busy, selected?.id, loadDetail]);
+
+          const act = React.useCallback(
+            async (kind, bot, extra) => {
+              if (!bot?.id && kind !== 'botCreate') return;
+              setBusy(true);
+              setErr('');
+              setNotice('');
+              try {
+                const res = await runBotAction(kind, bot, extra);
+                if (res.error) setErr(res.error);
+                if (res.notice) setNotice(res.notice);
+                if (res.deleted) {
+                  setSel(null);
+                  setDetail(null);
+                  setDetailView(false);
+                }
+                await refresh();
+                if (kind === 'botCreate' && res.value?.id) setSel(res.value.id);
+                if (!res.deleted && sel) await loadDetail(sel);
+              } catch (e) {
+                setErr(String(e?.message ?? e));
+              } finally {
+                setBusy(false);
+              }
+            },
+            [refresh, loadDetail, sel],
+          );
+
+          const saveConfig = React.useCallback(
+            async (payload, model) => {
+              if (!selected?.id) return { error: '没有选中的 Bot' };
+              setBusy(true);
+              setErr('');
+              try {
+                const j = await cpost('/bot/update', { botId: selected.id, ...payload });
+                if (!j?.ok) return { error: j?.message || '保存失败' };
+                const changed =
+                  model?.provider &&
+                  model?.model &&
+                  (model.provider !== selected.model?.provider ||
+                    model.model !== selected.model?.model);
+                if (changed) {
+                  const m = await cpost('/bot/model', {
+                    botId: selected.id,
+                    provider: model.provider,
+                    model: model.model,
+                  });
+                  if (!m?.ok) return { error: m?.message || '模型保存失败' };
+                }
+                setNotice('已保存');
+                await refresh();
+                await loadDetail(selected.id);
+                return {};
+              } catch (e) {
+                return { error: String(e?.message ?? e) };
+              } finally {
+                setBusy(false);
+              }
+            },
+            [selected, refresh, loadDetail],
+          );
+
+          const today = data?.stats?.todayCostCny ?? 0;
+          const pending = bots.reduce(
+            (n, b) => n + (b.pendingConfirmCount || 0) + (b.blocked ? 1 : 0),
+            0,
+          );
+          const hb = data?.heartbeat;
+          const hbMin = hb?.lastBeatAt ? Math.max(0, Math.floor((hb.staleMs || 0) / 60_000)) : null;
+
+          const alert =
+            err || notice
+              ? h(
+                  'div',
+                  { className: NS + '-c-alert ' + (err ? 'err' : 'ok') },
+                  h('span', { style: { flex: 1, minWidth: 0, whiteSpace: 'pre-wrap' } }, err || notice),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: NS + '-c-alert-x',
+                      onClick: () => (err ? setErr('') : setNotice('')),
+                      title: '关闭',
+                    },
+                    '×',
+                  ),
+                )
+              : null;
+
+          const stats = h(
+            'section',
+            { className: NS + '-c-stats' },
+            h(CStat, { k: '今日花费', v: cMoney(today), hint: bots.length + ' 个 Bot 合计' }),
+            h(CStat, { k: 'Bot 总数', v: String(bots.length), unit: '个', hint: pending ? pending + ' 个在等你' : '暂无待处理' }),
+            h(CStat, { k: '待你处理', v: String(pending), unit: '项', hint: pending ? '确认 / 阻塞 / 接续' : '一切都在自动推进' }),
+            h(CStat, {
+              k: '调度心跳',
+              v: hbMin == null ? '—' : String(hbMin),
+              unit: hbMin == null ? '' : '分钟前',
+              hint: hb?.isStale ? '可能已休眠' : '后台每 30 秒检查一次',
+            }),
+          );
+
+          const botsView = selected
+            ? h(
+                'div',
+                { className: NS + '-c-ws' },
+                h(BotRail, {
+                  bots,
+                  selectedId: selected.id,
+                  onSelect: (id) => {
+                    setSel(id);
+                    setDetailView(false);
+                  },
+                  onCreate: () => setForm({ kind: 'createBot' }),
+                }),
+                h('section', null, h(BotOverview, {
+                  bot: selected,
+                  detail: detail && detail.bot?.id === selected.id ? detail : null,
+                  act,
+                  busy,
+                  onDetail: () => setDetailView(true),
+                  onForm: setForm,
+                  onOpenRun: setOpenRun,
+                })),
+              )
+            : h(
+                CCard,
+                null,
+                h(CCardHead, { title: '开始' }),
+                h(
+                  'div',
+                  { className: NS + '-c-card-body' },
+                  h(
+                    'div',
+                    { className: NS + '-c-empty' },
+                    h('p', null, '还没有 Bot。Bot 是一个常驻的 AI 同事：有自己的目标、记忆和工作区；执行前会打快照，随时能回滚。'),
+                    h(CBtn, { kind: 'primary', onClick: () => setForm({ kind: 'createBot' }) }, '新建 Bot'),
+                  ),
+                ),
+              );
+
+          const detailPane = selected
+            ? h(
+                'div',
+                { className: NS + '-c-split' },
+                h(BotRail, {
+                  bots,
+                  selectedId: selected.id,
+                  onSelect: (id) => {
+                    setSel(id);
+                    setDetail(null);
+                  },
+                  onCreate: () => setForm({ kind: 'createBot' }),
+                  fill: true,
+                }),
+                h(BotDetailPane, {
+                  bot: selected,
+                  detail: detail && detail.bot?.id === selected.id ? detail : null,
+                  act,
+                  busy,
+                  onBack: () => setDetailView(false),
+                  onForm: setForm,
+                  onSaveConfig: saveConfig,
+                  onChanged: () => void loadDetail(selected.id),
+                  onAllRuns: () => {
+                    setDetailView(false);
+                    setTab('runs');
+                  },
+                  onOpenRun: setOpenRun,
+                }),
+              )
+            : null;
+
+          const other =
+            tab === 'runs'
+              ? h(ConsoleRuns, { bots, busy, onOpenRun: setOpenRun })
+              : tab === 'settings'
+                ? h(ConsoleSettings, { bots, busy })
+                : tab === 'doctor'
+                  ? h(ConsoleDoctor)
+                  : null;
+
+          return h(
+            'div',
+            { className: NS + '-c' },
+            h(
+              'div',
+              { className: NS + '-c-page' + (detailView ? ' split' : '') },
+              h(
+                'div',
+                { className: NS + '-c-content' },
+                h(
+                  'header',
+                  { className: NS + '-c-head' },
+                  h(
+                    'div',
+                    { className: NS + '-c-head-left' },
+                    h('div', { className: NS + '-c-mark' }, h(IconBot, { size: 18 })),
+                    h(
+                      'div',
+                      null,
+                      h('h1', { className: NS + '-c-title' }, 'dsh-bot'),
+                      h('p', { className: NS + '-c-sub' }, '常驻 AI 队友 · 记得住、守得住、收得回'),
+                    ),
+                  ),
+                  h(
+                    'div',
+                    { className: NS + '-c-head-actions' },
+                    h(
+                      CBtn,
+                      {
+                        kind: 'ghost',
+                        icon: h(IconRefresh, { size: 14, spinning: busy }),
+                        onClick: () => void refresh(),
+                        disabled: busy,
+                      },
+                      '刷新',
+                    ),
+                    h(
+                      CBtn,
+                      {
+                        kind: 'primary',
+                        icon: h(
+                          'svg',
+                          { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none' },
+                          h('path', {
+                            d: 'M12 5v14M5 12h14',
+                            stroke: 'currentColor',
+                            strokeWidth: 1.8,
+                            strokeLinecap: 'round',
+                          }),
+                        ),
+                        onClick: () => setForm({ kind: 'createBot' }),
+                      },
+                      '新建 Bot',
+                    ),
+                  ),
+                ),
+                h(CTabs, {
+                  tab,
+                  onTab: (id) => {
+                    setTab(id);
+                    setDetailView(false);
+                  },
+                  meta: '共 ' + bots.length + ' 个 Bot · 今日 ' + cMoney(today),
+                }),
+                !detailView && alert ? h('div', { style: { marginTop: 12 } }, alert) : null,
+                !detailView && tab === 'bots' ? stats : null,
+                tab === 'bots'
+                  ? detailView
+                    ? detailPane
+                    : botsView
+                  : h('div', { style: { marginTop: 16 } }, other),
+              ),
+            ),
+            detailView && alert
+              ? h('div', { className: NS + '-c-toast ' + (err ? 'err' : 'ok') }, alert)
+              : null,
+            form
+              ? h(
+                  'div',
+                  {
+                    className: NS + '-c-modal',
+                    onMouseDown: (e) => {
+                      if (e.target === e.currentTarget) setForm(null);
+                    },
+                  },
+                  h(
+                    'div',
+                    { className: NS + '-c-modal-card' },
+                    h(FormPanel, {
+                      form,
+                      busy,
+                      onClose: () => setForm(null),
+                      onSubmit: (kind, extra) => {
+                        const target =
+                          bots.find((x) => x.id === form.botId) ||
+                          { id: form.botId, name: form.botName, model: {} };
+                        setForm(null);
+                        void act(kind, target, extra);
+                      },
+                    }),
+                  ),
+                )
+              : null,
+            openRun
+              ? h(RunDetailModal, { run: openRun, onClose: () => setOpenRun(null) })
+              : null,
+          );
+        }
         /** 主面板页：点侧边栏图标后，右侧显示的内容（设置 + 诊断） */
         function BotPanelPage() {
           try {
-            const load = React.useCallback(async () => {
-              const r = await fetch('/_dsh-bot/settings', { headers: { accept: 'application/json' } });
-              const j = await r.json();
-              if (!j?.ok) throw new Error(j?.message || '读取失败');
-              return j.value.effective;
-            }, []);
-            const save = React.useCallback(async (next) => {
-              try {
-                await fetch('/_dsh-bot/settings', {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ settings: next }),
-                });
-              } catch {
-                /* 下次保存再试 */
-              }
-            }, []);
-            const clearRuns = React.useCallback(async () => {
-              try {
-                const r = await fetch('/_dsh-bot/overview', { headers: { accept: 'application/json' } });
-                const j = await r.json();
-                const first = j?.value?.bots?.[0];
-                if (!first) return;
-                await fetch('/_dsh-bot/runs/clear', {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ botId: first.id, confirm: true }),
-                });
-              } catch {
-                /* 忽略 */
-              }
-            }, []);
-
-            return h(
-              'div',
-              { style: { height: '100%', overflowY: 'auto', padding: '20px 24px 40px', fontFamily: FONT, color: LABEL_1 } },
-              h(
-                'div',
-                { style: { maxWidth: 720, margin: '0 auto' } },
-                h('div', { style: { fontSize: 18, fontWeight: 600, marginBottom: 2 } }, 'dsh-bot'),
-                h('div', { style: { fontSize: 11, color: LABEL_3, marginBottom: 14 } }, '常驻 AI 队友 · 设置与诊断'),
-                h(DoctorPanel, null),
-                h('div', { style: { height: 14 } }),
-                h(SettingsView, {
-                  busy: false,
-                  onClose: () => {},
-                  onLoad: load,
-                  onSave: save,
-                  onClearRuns: clearRuns,
-                  hideClose: true,
-                }),
-              ),
-            );
+            return h(BotConsole, null);
           } catch (e) {
             report('main-panel-render-error', String(e?.message ?? e));
             return null;
@@ -4593,69 +6312,16 @@ window.__ModuleLoader__.load({
 
         function BotSettingsSection() {
           try {
-            const save = React.useCallback(async (next) => {
-              try {
-                await fetch('/_dsh-bot/settings', {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ settings: next }),
-                });
-              } catch {
-                /* 保存失败下次再试 */
-              }
-            }, []);
 
-            const load = React.useCallback(async () => {
-              const r = await fetch('/_dsh-bot/settings', {
-                headers: { accept: 'application/json' },
-              });
-              const j = await r.json();
-              if (!j?.ok) throw new Error(j?.message || '读取失败');
-              return j.value.effective;
-            }, []);
 
-            const clearRuns = React.useCallback(async () => {
-              try {
-                const r = await fetch('/_dsh-bot/overview', {
-                  headers: { accept: 'application/json' },
-                });
-                const j = await r.json();
-                const first = j?.value?.bots?.[0];
-                if (!first) return;
-                await fetch('/_dsh-bot/runs/clear', {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ botId: first.id, confirm: true }),
-                });
-              } catch {
-                /* 忽略 */
-              }
-            }, []);
-
+            // 0.3.8：官方设置页的 Bot 分区与主页面共用同一套组件，
+            //   消除两套 UI 的行为漂移（旧版「清空记录」只清第一个 Bot，新版清全部）。
             return h(
               'div',
-              {
-                style: {
-                  padding: '4px 0 16px',
-                  fontFamily: FONT,
-                  color: LABEL_1,
-                  maxWidth: 620,
-                },
-              },
-              h(
-                'div',
-                { style: { fontSize: 13, fontWeight: 600, marginBottom: 10 } },
-                'Bot',
-              ),
-              h(DoctorPanel, null),
-              h(SettingsView, {
-                busy: false,
-                onClose: () => {},
-                onLoad: load,
-                onSave: save,
-                onClearRuns: clearRuns,
-                hideClose: true,
-              }),
+              { className: NS + '-c-vars', style: { padding: '4px 0 16px', fontFamily: FONT, color: LABEL_1, maxWidth: 900 } },
+              h(ConsoleSettings, { bots: [], busy: false }),
+              h('div', { style: { height: 12 } }),
+              h(ConsoleDoctor, null),
             );
           } catch (e) {
             report('settings-section-render-error', String(e?.message ?? e));

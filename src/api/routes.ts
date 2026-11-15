@@ -15,6 +15,8 @@ import { BotError, type GoalState } from '../types.js';
 import { createGoal, parseCadence, transitionGoal } from '../goal/state.js';
 import { formatBytes } from '../routine/snapshot.js';
 import { isValidCron } from '../scheduler/cron.js';
+import { parseYaml, stringifyYaml } from '../tools/yaml.js';
+import { validateRoutine } from '../routine/schema.js';
 
 /**
  * ⚠️ 路径选择说明
@@ -310,6 +312,22 @@ export function makeBotApiRoutes(
               );
             }
           }
+          // v0.3.8：预算从「只读展示」变成可编辑
+          if (body?.budget && typeof body.budget === 'object') {
+            const daily = Number(body.budget.dailyCny);
+            const monthly = Number(body.budget.monthlyCny);
+            if (!Number.isFinite(daily) || daily <= 0 || daily > 1000) {
+              throw new BotError('INVALID_ARGS', '每日预算需在 0–1000 元之间');
+            }
+            if (!Number.isFinite(monthly) || monthly < daily) {
+              throw new BotError('INVALID_ARGS', '每月预算不能小于每日预算');
+            }
+            patch.budget = {
+              dailyCny: daily,
+              monthlyCny: monthly,
+              onExceed: body.budget.onExceed === 'downgrade' ? 'downgrade' : 'stop',
+            };
+          }
           if (Object.keys(patch).length === 0 && cadencePatch === undefined) {
             throw new BotError('INVALID_ARGS', '没有可更新的字段');
           }
@@ -330,6 +348,83 @@ export function makeBotApiRoutes(
             }
           }
           writeJson(res, 200, { ok: true, value: next });
+        } catch (e) {
+          writeError(res, e);
+        }
+      },
+    },
+
+    // ----------------------------------------------------------
+    // 例行流程（v0.3.8）
+    // ----------------------------------------------------------
+    {
+      kind: 'exact',
+      path: `${API_PREFIX}/routines`,
+      handler: async (req, res) => {
+        if (req.method !== 'GET') {
+          writeJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        try {
+          const url = new URL(req.url ?? '/', 'http://x');
+          const botId = url.searchParams.get('botId');
+          const routineId = url.searchParams.get('routineId');
+          if (!botId) {
+            writeJson(res, 400, { ok: false, code: 'INVALID_ARGS', message: '缺少 botId' });
+            return;
+          }
+          if (routineId) {
+            const routine = await service.getRoutine(botId, routineId);
+            writeJson(res, 200, {
+              ok: true,
+              value: { routine, yaml: stringifyYaml(routine) },
+            });
+            return;
+          }
+          writeJson(res, 200, { ok: true, value: { routines: await service.listRoutines(botId) } });
+        } catch (e) {
+          writeError(res, e);
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${API_PREFIX}/routines/save`,
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          writeJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        try {
+          const body = (await readJsonBody(req)) as any;
+          const botId = String(body?.botId ?? '').trim();
+          const yaml = String(body?.yaml ?? '').trim();
+          if (!botId) throw new BotError('INVALID_ARGS', '缺少 botId');
+          if (!yaml) throw new BotError('INVALID_ARGS', '流程内容不能为空');
+          if (yaml.length > 200_000) throw new BotError('INVALID_ARGS', '流程内容过大（上限 200KB）');
+          const routine = validateRoutine(parseYaml(yaml));
+          await service.saveRoutine(botId, routine);
+          writeJson(res, 200, { ok: true, value: { id: routine.metadata.id } });
+        } catch (e) {
+          writeError(res, e);
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${API_PREFIX}/routines/remove`,
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          writeJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        try {
+          const body = (await readJsonBody(req)) as any;
+          const botId = String(body?.botId ?? '').trim();
+          const routineId = String(body?.routineId ?? '').trim();
+          if (!botId || !routineId) throw new BotError('INVALID_ARGS', '需要 botId / routineId');
+          await service.removeRoutine(botId, routineId);
+          writeJson(res, 200, { ok: true, value: { removed: routineId } });
         } catch (e) {
           writeError(res, e);
         }

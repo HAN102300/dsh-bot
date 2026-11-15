@@ -13,3 +13,4 @@ docs/archive/
 *.bundle
 *.tgz
 RELEASE-NOTES*
+data/

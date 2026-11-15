@@ -87,7 +87,7 @@ describe('插件加载完整性', () => {
     const host = makeFakeHost();
     apply(host.ctx as never, { homeDir });
 
-    expect(host.routePaths.length).toBe(27);
+    expect(host.routePaths.length).toBe(30);
     expect(host.routePaths.every((p) => p.startsWith('/_dsh-bot'))).toBe(true);
     // 核心端点抽查：面板的每个关键操作都有后端
     for (const must of [
@@ -97,6 +97,9 @@ describe('插件加载完整性', () => {
       '/_dsh-bot/rollback',
       '/_dsh-bot/goal/set',
       '/_dsh-bot/runs/list',
+      '/_dsh-bot/routines',
+      '/_dsh-bot/routines/save',
+      '/_dsh-bot/routines/remove',
     ]) {
       expect(host.routePaths).toContain(must);
     }
