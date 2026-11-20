@@ -209,8 +209,10 @@ export function makeBotApiRoutes(
     getSettings?: (botId?: string) => Promise<any>;
     /** 读全局设置 */
     getGlobalSettings?: () => Promise<any>;
-    /** 保存设置 */
-    saveSettings?: (botId: string | undefined, patch: any) => Promise<any>;
+    /** 保存设置（clear：要恢复跟随全局的键；v0.3.9 刀 2） */
+    saveSettings?: (botId: string | undefined, patch: any, clear?: string[]) => Promise<any>;
+    /** 单 Bot 覆盖键清单（v0.3.9 刀 2） */
+    getSettingsOverrides?: (botId?: string) => Promise<string[]>;
     /** 诊断聚合（v0.3.5 刀 2）：四层状态，只读，端点自身永远 200 */
     doctor?: () => Promise<any>;
   },
@@ -329,6 +331,39 @@ export function makeBotApiRoutes(
             };
           }
           if (Object.keys(patch).length === 0 && cadencePatch === undefined) {
+          // v0.3.9 刀 3：模型并入同一 POST —— 此前资料/模型/预算要三次请求，
+          // 中途失败会留下「名字改了模型没改」的脏状态。
+          if (body?.model && typeof body.model === 'object') {
+            const provider = String(body.model.provider ?? '').trim();
+            const model = String(body.model.model ?? '').trim();
+            if (!provider || !model) {
+              throw new BotError('INVALID_ARGS', '需要 model.provider 与 model.model');
+            }
+            const known = (await runAction.getAvailableModels?.()) ?? [];
+            if (known.length > 0) {
+              const hit = known.find((x) => x.provider === provider);
+              if (!hit) {
+                throw new BotError(
+                  'INVALID_ARGS',
+                  `当前环境没有 provider「${provider}」。可用：` + known.map((x) => x.provider).join(', '),
+                );
+              }
+              if (hit.models && hit.models.length > 0 && !hit.models.includes(model)) {
+                throw new BotError(
+                  'INVALID_ARGS',
+                  `provider「${provider}」下没有模型「${model}」。可用：` + hit.models.join(', '),
+                );
+              }
+            }
+            const cur = await service.get(botId);
+            patch.model = {
+              provider,
+              model,
+              reasoningEffort: body.model.reasoningEffort ?? cur.model?.reasoningEffort ?? 'high',
+            };
+          }
+
+
             throw new BotError('INVALID_ARGS', '没有可更新的字段');
           }
 
@@ -1015,15 +1050,18 @@ export function makeBotApiRoutes(
           if (req.method === 'GET') {
             const url = new URL(req.url ?? '/', 'http://x');
             const botId = url.searchParams.get('botId') ?? undefined;
-            const [effective, global] = await Promise.all([
+            const [effective, global, overrides] = await Promise.all([
               runAction.getSettings?.(botId),
               runAction.getGlobalSettings?.(),
+              runAction.getSettingsOverrides?.(botId),
             ]);
             writeJson(res, 200, {
               ok: true,
               value: {
                 effective: effective ?? null,
                 global: global ?? null,
+                /** 该 Bot 覆盖过的键；其余跟随全局（v0.3.9 刀 2） */
+                overrides: overrides ?? [],
               },
             });
             return;
@@ -1034,9 +1072,14 @@ export function makeBotApiRoutes(
           }
           const body = (await readJsonBody(req)) as any;
           const target = body?.botId ? String(body.botId) : undefined;
+          // clear：显式「恢复跟随全局」——按键删除单 Bot 覆盖
+          const clear = Array.isArray(body?.clear)
+            ? body.clear.map((k: unknown) => String(k))
+            : [];
           const result = await runAction.saveSettings?.(
             target,
             body?.settings ?? {},
+            clear,
           );
           writeJson(res, 200, { ok: true, value: result ?? null });
         } catch (e) {
@@ -1126,6 +1169,68 @@ export function makeBotApiRoutes(
     // ----------------------------------------------------------
     // 运行记录管理（设置页用：删除 / 清空）
     // ----------------------------------------------------------
+    // ----------------------------------------------------------
+    // 聚合运行列表（v0.3.9 刀 3）
+    //
+    // 为什么需要它：运行记录页此前是「每个 Bot 一个 /runs/list」的 N+1 请求，
+    // 10 个 Bot 就是 10 次往返；这里一次返回全部 Bot 的近 N 轮 + 每 Bot 健康分。
+    // ----------------------------------------------------------
+    {
+      kind: 'exact',
+      path: `${API_PREFIX}/runs/aggregate`,
+      handler: async (req, res) => {
+        if (req.method !== 'GET') {
+          writeJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        try {
+          const url = new URL(req.url ?? '/', 'http://x');
+          const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 20, 1), 100);
+          const bots = await service.list();
+          const runs: any[] = [];
+          const byBot: Record<string, { botName: string; sample: number; successRate: number }> = {};
+          for (const b of bots) {
+            const list = await service.listRuns(b.id, limit);
+            const sample = list.length;
+            const ok = list.filter((r) => r.status === 'success').length;
+            byBot[b.id] = {
+              botName: b.name,
+              sample,
+              successRate: sample ? ok / sample : 0,
+            };
+            for (const r of list) {
+              runs.push({
+                id: r.id,
+                botId: b.id,
+                botName: b.name,
+                status: r.status,
+                trigger: r.trigger,
+                startedAt: r.startedAt,
+                endedAt: r.endedAt,
+                usage: r.usage,
+                steps: (r.steps ?? []).map((s: any) => ({ kind: s.kind, name: s.name })),
+              });
+            }
+          }
+          runs.sort((a, b) => String(b.startedAt ?? '').localeCompare(String(a.startedAt ?? '')));
+          const total = runs.length;
+          const success = runs.filter((r) => r.status === 'success').length;
+          writeJson(res, 200, {
+            ok: true,
+            value: {
+              runs,
+              byBot,
+              health: { sample: total, successRate: total ? success / total : 0 },
+              botCount: bots.length,
+            },
+          });
+        } catch (e) {
+          writeError(res, e);
+        }
+      },
+    },
+
+
     {
       kind: 'exact',
       path: `${API_PREFIX}/runs/clear`,

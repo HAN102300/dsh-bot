@@ -392,6 +392,9 @@ export class BotService {
         todayCostCny: todayCost,
         lastRunAt: runs[0]?.startedAt,
         lastRunStatus: runs[0]?.status,
+        // v0.3.9 刀1：dock 快捷条需要展示/切换模型与预算上限
+        model: identity.model,
+        budget: identity.budget,
 
         goalDescription: goal?.description,
         goalStatus: goal?.status,

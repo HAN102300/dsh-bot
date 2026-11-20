@@ -3,7 +3,10 @@
 > 从 `ROADMAP-v0.3.md` §七 拆出：这份是**宿主怎么工作**的知识，不是计划。
 > 与 [LESSONS.md](./LESSONS.md) 的分工：LESSONS 是「我们该守的工程原则」，本文件是「宿主实际长什么样」。
 >
-> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` **0.2.1-rc.x 与 0.2.2-rc.x（rc.1 / rc.2 均已核对）**。rc.2 相对 rc.1 无破坏性变更：hostProtocolVersion 仍为 4、client slots 未变、本插件 35 个设计令牌全部仍有定义。**每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
+> 适用宿主：`@deepseek-ai/dsh-desktop-runtime` **0.2.1-rc.x 与 0.2.2-rc.x（rc.1 / rc.2 / rc.5 均已核对）**。
+> **rc.5 审计结论（2026-11-19）**：无破坏性变更——`defineTool` 实现逐字一致、`inject` 契约（tools/webServer/llm）与四个客户端插槽（sidebar.panellist / main.keyed / conversation.input.dock / settings.section）语义不变、`__ModuleLoader__.load` 加载形态不变、WebRoute 形状不变（`{kind:'exact'|'prefix', path, handler}`）。hostProtocolVersion 仍为 4。
+> **rc.5 新增可用能力**：`ctx.layout.selectPanel(panelId)`（SERVICE_API 正式契约；需在 `inject` 声明 `'layout'`）——dock 快捷条的「管理中心」按钮用它直达主面板，旧宿主缺失时 try/catch 降级。
+> **每个宿主版本升级后，按 RELEASES.md 的 A1 回归一次。**
 
 ## 背景
 

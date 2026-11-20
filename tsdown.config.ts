@@ -1,6 +1,7 @@
 import { defineConfig } from 'tsdown';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 
 /**
  * 构建插件：
@@ -16,6 +17,14 @@ import path from 'node:path';
  *    这是 DSH 发现浏览器端插件的硬性要求。
  */
 const copyClient = () => {
+  // 刀 0：先拼接 parts/*.js → src/client/bundle.js，再复制产物（单源，避免两处编辑）
+  try {
+    execSync('node ' + path.resolve('dev/concat-parts.mjs'), { stdio: 'inherit' });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('⚠ concat-parts failed: ' + msg);
+  }
+
   const src = path.resolve('src/client/bundle.js');
   const dst = path.resolve('lib/client.js');
   if (fs.existsSync(src)) {

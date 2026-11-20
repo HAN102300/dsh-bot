@@ -1,6 +1,6 @@
 {
   "name": "@zifeng1023/dsh-bot",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "常驻 AI 队友：记得住、守得住、收得回。默认 dry-run 演习、执行前自动快照、可一键回滚，并支持错峰调度省钱。",
   "repository": {
     "type": "git",
@@ -72,8 +72,8 @@
     "vitest": "^3.0.0"
   },
   "scripts": {
-    "build": "tsdown",
-    "prepare": "tsdown",
+    "build": "node dev/concat-parts.mjs && tsdown",
+    "prepare": "node dev/concat-parts.mjs && tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -82,7 +82,8 @@
     "verify:static": "node dev/check-undefined.mjs",
     "verify:e2e": "node dev/demo-goal-cycle.mjs && node dev/demo-goal-cadence.mjs && node dev/demo-model-binding.mjs",
     "verify:all": "npm run verify:static && npm run typecheck && npm run test && npm run build && npm run verify:client && npm run verify:e2e",
-    "gen:tools": "node dev/gen-tools-doc.mjs"
+    "gen:tools": "node dev/gen-tools-doc.mjs",
+    "concat": "node dev/concat-parts.mjs"
   },
   "license": "MIT"
 }

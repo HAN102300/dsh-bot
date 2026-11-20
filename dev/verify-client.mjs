@@ -66,7 +66,7 @@ console.log(`✅ 产物与源码一致，构建版本已注入（${pkg.version}�
 
 // 5. 结构断言：整个文件必须包在 IIFE 里
 const firstCodeLine = code
-  .replace(/^\s*\/\*[\s\S]*?\*\/\s*/, '')
+  .replace(/^(\s*\/\*[\s\S]*?\*\/\s*)+/, '') // 刀0: 生成横幅+文档头可能有多个前导块注释
   .trimStart();
 if (!firstCodeLine.startsWith('(function')) {
   console.log(`❌ 首个非注释语句不是 IIFE：${firstCodeLine.slice(0, 40)}…`);
@@ -153,8 +153,8 @@ if (!code.includes('sidebar.panellist') || !code.includes("name: 'main'")) {
 }
 console.log('✅ 侧边栏入口 / 主面板注册存在');
 
-// 10. Bot 资料编辑路由
-if (!code.includes('/_dsh-bot/bot/update')) {
+// 10. Bot 资料编辑路由（cpost 会补全 /_dsh-bot 前缀，两种写法等价）
+if (!code.includes('/_dsh-bot/bot/update') && !code.includes("cpost('/bot/update'")) {
   console.log('❌ Bot 资料编辑没有接 /bot/update');
   process.exit(1);
 }
@@ -301,14 +301,12 @@ console.log('✅ slot 组件是有效 React 组件');
 {
   let renders = 0;
 
-  // ⭐ 用一个能"驱动" hooks 的假 React：
-  //    让 useState 返回可控值，从而把组件推进到展开态与详情态。
+  // ⭐ 驱动 hooks 的假 React（v0.3.9：渲染对象是 DockBar 快捷条）
   function makeReact(stateQueue) {
     let qi = 0;
     return {
       createElement: (type, props, ...children) => {
         renders++;
-        // 组件（函数）在这里不自动递归，交给下面手动调用
         return { type, props, children };
       },
       useState: (init) => {
@@ -324,7 +322,6 @@ console.log('✅ slot 组件是有效 React 组件');
     };
   }
 
-  /** 把一棵（可能的）组件树展开成可检查的平面结构 */
   function flatten(node, out = []) {
     if (node == null || node === false) return out;
     if (Array.isArray(node)) {
@@ -334,11 +331,10 @@ console.log('✅ slot 组件是有效 React 组件');
     if (typeof node === 'object') {
       out.push(node);
       if (typeof node.type === 'function') {
-        // 递归渲染子组件
         try {
           flatten(node.type(node.props ?? {}), out);
-        } catch {
-          /* 子组件渲染失败单独报，不让整体崩 */
+        } catch (e) {
+          throw new Error('子组件 ' + (node.type.name || 'anonymous') + ' 渲染抛错: ' + (e.message ?? e));
         }
       } else if (Array.isArray(node.children)) {
         for (const c of node.children) flatten(c, out);
@@ -347,8 +343,10 @@ console.log('✅ slot 组件是有效 React 组件');
     return out;
   }
 
-  /** 尝试用给定初始 state 渲染一次 */
-  function tryRender(label, stateQueue) {
+  // DockBar 的 useState 队列顺序：
+  //   0 bots  1 menuOpen  2 runPop  3 modelPop  4 models
+  //   5 busy  6 runningBot  7 toast  8 collapsed  9 assocId  10 pickProvider
+  function tryDock(label, stateQueue) {
     renders = 0;
     const mod = def.factory((name) => {
       if (name === 'react') return makeReact(stateQueue);
@@ -359,85 +357,127 @@ console.log('✅ slot 组件是有效 React 组件');
       slots: { inject: (_n, f) => f(), register: (o, c) => reg.push({ o, c }) },
     };
     mod.apply(ctx);
-    const tree = reg[0].c();
+    const dockReg = reg.find((r) => r.o && r.o.name === 'conversation.input.dock');
+    if (!dockReg) throw new Error('没有注册 conversation.input.dock');
+    let tree = dockReg.c();
+    // 注册层可能是箭头包装（() => h(DockBar, ...)）：手动驱动一层组件
+    if (tree && typeof tree.type === 'function') {
+      tree = tree.type(tree.props ?? {});
+    }
     if (!tree || renders < 3) {
       throw new Error(`只创建了 ${renders} 个元素`);
     }
     return { tree, flat: flatten(tree), renders };
   }
 
-  // ① 收起态：open=false
-  let collapsed;
+  const DOCK_BOTS = [
+    {
+      id: 'bot_x', name: '数据哨兵', role: '抓下载量与 stars',
+      runCount: 9, todayCostCny: 0.0136,
+      lastRunAt: new Date().toISOString(), lastRunStatus: 'success',
+      budget: { dailyCny: 5, monthlyCny: 100, onExceed: 'stop' },
+      model: { provider: 'deepseek-account', model: 'deepseek-flash', reasoningEffort: 'high' },
+    },
+    {
+      id: 'bot_y', name: '构建巡检员', role: '盯 CI',
+      runCount: 2, todayCostCny: 0,
+      lastRunAt: null, lastRunStatus: 'failed',
+      budget: { dailyCny: 5 },
+      model: { provider: 'zcode', model: 'glm' },
+    },
+  ];
+  const DOCK_MODELS = [
+    { provider: 'deepseek-account', models: ['deepseek-flash', 'deepseek-pro'] },
+    { provider: 'zcode', models: ['glm', 'glm-pro'] },
+  ];
+
+  // ① 收起态：collapsed=true（一行胶囊：Bot 名 + 状态点 + 模型 pill + 展开）
   try {
-    collapsed = tryRender('收起态', [false, null, '', false, '', null, false, false]);
-    console.log(`✅ 收起态渲染成功（创建 ${collapsed.renders} 个元素）`);
+    const r = tryDock('收起态', [DOCK_BOTS, false, false, false, null, false, null, '', true, '', null]);
+    const texts = JSON.stringify(r.flat.map((n) => n.children));
+    if (!texts.includes('数据哨兵')) throw new Error('收起态没有渲染 Bot 名');
+    if (!texts.includes('deepseek-flash')) throw new Error('收起态没有渲染模型 pill');
+    if (!texts.includes('¥0.01')) throw new Error('收起态没有渲染今日花费（v0.3.9 起花费归收起态）');
+    console.log(`✅ 收起态渲染成功（创建 ${r.renders} 个元素，含 Bot 名与模型 pill）`);
   } catch (e) {
     console.log('❌ 收起态渲染失败:', e.message);
     process.exit(1);
   }
 
-  // ② 展开态：open=true，但没有数据（loading / 空）
+  // ② 展开态：collapsed=false，无数据（loading）
   try {
-    const r = tryRender('展开态', [true, null, '', false, '', null, false, false]);
-    console.log(`✅ 展开态渲染成功（创建 ${r.renders} 个元素）`);
+    const r = tryDock('展开态-loading', [null, false, false, false, null, false, null, '', false, '', null]);
+    if (r.renders < 3) throw new Error('元素过少');
+    console.log(`✅ 展开态 loading 渲染成功（创建 ${r.renders} 个元素）`);
   } catch (e) {
     console.log('❌ 展开态渲染失败:', e.message);
     process.exit(1);
   }
 
-  // ③ ⭐ 详情态：带完整数据（目标 + 候选 + 运行 + 记忆 + 例行）
-  //    这是本次新增代码最集中的地方，必须真渲染一遍。
+  // ③ 展开态 + 数据 + 空态（无 Bot）：必须出现「未关联」
   try {
-    const r = tryRender('详情态', [
-      true,
-      {
-        bots: [
-          {
-            id: 'bot_x',
-            name: '文件管家',
-            role: '整理下载文件夹',
-            createdAt: '2026-10-19T00:00:00.000Z',
-            runCount: 9,
-            todayCostCny: 0.0031,
-            lastRunAt: new Date().toISOString(),
-            lastRunStatus: 'success',
-            goalDescription: '整理下载文件夹',
-            goalStatus: 'pending_confirmation',
-            goalType: 'one-shot',
-            goalProgress: '已归档 12 个文件',
-            pendingConfirmCount: 1,
-            proposedCount: 1,
-            blocked: false,
-            memoryCount: 23,
-          },
-        ],
-        stats: { botCount: 1, todayCostCny: 0.0031, runTotal: 9 },
-        heartbeat: null,
-      },
-      '',
-      false,
-      '演习完成',
-      'bot_x',
-      false,
-      false,
-    ]);
-
-    // 详情区依赖 detail —— 组件内部 detail 来自 useState，
-    // 我们无法从外部注入，所以这一步主要验证列表行 + 头部角标不崩。
-    console.log(`✅ 列表行（含目标行与角标）渲染成功（创建 ${r.renders} 个元素）`);
-
-    // 校验「他在守」这一行真的出现了
+    const r = tryDock('展开态-空', [[], false, false, false, null, false, null, '', false, '', null]);
     const texts = JSON.stringify(r.flat.map((n) => n.children));
-    if (!texts.includes('他在守')) {
-      console.log('❌ 列表行没有渲染「他在守」（目标可见性缺失）');
-      process.exit(1);
-    }
-    if (!texts.includes('项等你')) {
-      console.log('❌ 头部没有渲染待处理角标');
-      process.exit(1);
-    }
+    if (!texts.includes('未关联')) throw new Error('空态没有渲染「未关联」引导');
+    console.log(`✅ 空态渲染成功（含「未关联」引导，创建 ${r.renders} 个元素）`);
   } catch (e) {
-    console.log('❌ 详情态渲染失败:', e.message);
+    console.log('❌ 空态渲染失败:', e.message);
+    process.exit(1);
+  }
+
+  // ④ 展开态 + 完整数据：chip/状态/花费/模型 pill/执行/管理中心 全部在场
+  try {
+    const r = tryDock('展开态-数据', [DOCK_BOTS, false, false, false, DOCK_MODELS, false, null, '', false, 'bot_x', null]);
+    const texts = JSON.stringify(r.flat.map((n) => n.children));
+    if (!texts.includes('数据哨兵')) throw new Error('没有渲染 Bot chip');
+    if (!texts.includes('执行') || !texts.includes('管理中心')) throw new Error('没有渲染操作区');
+    if (!texts.includes('管理中心')) throw new Error('没有渲染管理中心入口');
+    if (!texts.includes('演习') && !texts.includes('执行')) throw new Error('没有渲染执行入口');
+    if (!texts.includes('成功 ·')) throw new Error('没有渲染最近一轮状态');
+    console.log(`✅ 展开态（带数据）渲染成功（创建 ${r.renders} 个元素，五个要素齐全）`);
+  } catch (e) {
+    console.log('❌ 展开态渲染失败:', e.message);
+    process.exit(1);
+  }
+
+  // ④b ⭐ 收起态也必须能弹菜单（2026-11-20 反馈：收起态三个控件全跳管理中心）
+  try {
+    const r1 = tryDock('收起态-Bot菜单', [DOCK_BOTS, true, false, false, DOCK_MODELS, false, null, '', true, 'bot_x', null]);
+    const t1 = JSON.stringify(r1.flat.map((n) => n.children));
+    if (!t1.includes('全部 Bot')) throw new Error('收起态点击 Bot 名没有弹出 Bot 菜单');
+    const r2 = tryDock('收起态-模型菜单', [DOCK_BOTS, false, false, true, DOCK_MODELS, false, null, '', true, 'bot_x', null]);
+    const t2 = JSON.stringify(r2.flat.map((n) => n.children));
+    if (!t2.includes('切换到哪个 provider')) throw new Error('收起态点击模型没有弹出模型菜单');
+    console.log('✅ 收起态可弹出 Bot 菜单与模型菜单（不再全部跳管理中心）');
+  } catch (e) {
+    console.log('❌ 收起态菜单失败:', e.message);
+    process.exit(1);
+  }
+
+  // ⑤ 模型菜单打开态：provider 列表 + 返回项
+  try {
+    const r = tryDock('模型菜单', [DOCK_BOTS, false, false, true, DOCK_MODELS, false, null, '', false, 'bot_x', null]);
+    const texts = JSON.stringify(r.flat.map((n) => n.children));
+    if (!texts.includes('切换到哪个 provider')) throw new Error('模型菜单没有渲染 provider 列表');
+    if (!texts.includes('deepseek-account')) throw new Error('provider 列表缺项');
+    console.log(`✅ 模型快切菜单渲染成功（provider 列表 + 返回项，创建 ${r.renders} 个元素）`);
+  } catch (e) {
+    console.log('❌ 模型菜单渲染失败:', e.message);
+    process.exit(1);
+  }
+
+  // ⑥ ⭐ 模型列表分支（pickProvider 已选）—— 2026-11-20 真机崩溃现场：
+  //    提取 ModelMenu 时 modelsFor 声明被误删，点击 provider 后进入该分支即
+  //    ReferenceError: modelsFor is not defined → 整棵 React 树卸载 → 快捷条消失。
+  try {
+    const r = tryDock('模型列表分支', [DOCK_BOTS, false, false, true, DOCK_MODELS, false, null, '', false, 'bot_x', 'deepseek-account']);
+    const texts = JSON.stringify(r.flat.map((n) => n.children));
+    if (!texts.includes('deepseek-account · 2 个模型')) throw new Error('没有渲染模型列表标题');
+    if (!texts.includes('deepseek-pro')) throw new Error('没有渲染该 provider 下的模型');
+    if (!texts.includes('返回')) throw new Error('没有返回按钮');
+    console.log(`✅ 模型列表分支渲染成功（provider 下的模型 + 返回，创建 ${r.renders} 个元素）`);
+  } catch (e) {
+    console.log('❌ 模型列表分支渲染失败（点击 provider 会崩）:', e.message);
     process.exit(1);
   }
 }
@@ -1030,6 +1070,125 @@ console.log(
     process.exit(1);
   }
   console.log('✅ 快照卡按文件证据显示；例行流程为只读（无流程整卡隐藏）');
+}
+
+// 18. ⭐ v0.3.9 刀1：dock 收敛断言
+//     旧 BotDock 完整面板必须删除；快捷条（DockBar）必须带齐六要素。
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
+    'utf8',
+  );
+  // 18a. 旧面板符号不允许回归（组件本体；注释里出现历史名可以，函数定义不行）
+  const banned = [
+    'function BotDock(', 'function renderRuns(', 'function renderMemory(',
+    'function renderRoutines(', 'function renderGoalCard(', 'function renderProposals(',
+    'function renderSituation(', 'function botSituation(', 'function SectionTitle(',
+  ];
+  const hit = banned.filter((b) => src.includes(b));
+  if (hit.length) {
+    console.log('❌ 旧 dock 面板符号回归：' + hit.join(', ') + '（能力归属 0.3.8 控制台，见 PLAN-v0.3.9）');
+    process.exit(1);
+  }
+  console.log('✅ 旧 dock 完整面板已删除（9 个旧渲染函数无残留）');
+
+  // 18b. 快捷条六要素
+  const mustHave = [
+    ['function DockBar(', 'DockBar 组件'],
+    ['-db-chip', 'Bot 切换 chip'],
+    ['-db-stat', '状态 chip'],
+    ['-db-cost', '今日花费'],
+    ['-db-model', '模型快切 pill'],
+    ['-db-pop', '弹出层（菜单/演习确认）'],
+    ['selectPanel', '管理中心跳转调用'],
+    ['dockCollapsed', '收起态记忆'],
+  ];
+  for (const [needle, label] of mustHave) {
+    if (!src.includes(needle)) {
+      console.log('❌ 快捷条缺少：' + label + '（' + needle + '）');
+      process.exit(1);
+    }
+  }
+  console.log('✅ 快捷条六要素齐全（chip/状态/花费/模型/执行/管理中心 + 收起记忆）');
+
+  // 18b'. /run 必须带 confirm:true —— 2026-11-20 真机：点「真跑一次」被路由的确认校验挡回
+  if (!/body: JSON\.stringify\(\{ botId: shown\.id, dryRun, confirm: true \}\)/.test(src)) {
+    console.log('❌ 快捷条的 /run 请求没有带 confirm:true（真跑/演习都会被 403 CONFIRM_REQUIRED 挡回）');
+    process.exit(1);
+  }
+  if (!/position: fixed; top: 50%; left: 50%; bottom: auto; right: auto;/.test(src)) {
+    console.log('❌ toast 没有居中，或没有显式重置 bottom/right（旧样式残留会把它拉成竖条）');
+    process.exit(1);
+  }
+  if (!/querySelectorAll\('style\[data-plugin=/.test(src)) {
+    console.log('❌ injectStyle 没有清理旧样式标签（热重载后新旧规则会叠加）');
+    process.exit(1);
+  }
+  console.log('✅ 执行请求带 confirm:true；toast 居中且不截获点击');
+
+  // 18c. selectPanel 必须带降级（旧宿主没有 layout 服务）
+  const spIdx = src.indexOf('function openConsole(');
+  const spBody = src.slice(spIdx, spIdx + 600);
+  if (!spBody.includes('try') || !spBody.includes('catch')) {
+    console.log('❌ selectPanel 调用没有 try/catch 降级（旧宿主会崩）');
+    process.exit(1);
+  }
+  console.log('✅ 管理中心跳转带旧宿主降级（try/catch + toast 引导侧边栏）');
+
+  // 18d. 注入声明必须包含 layout（selectPanel 的来源）
+  if (!src.includes("const inject = ['slots', 'layout']")) {
+    console.log('❌ inject 未声明 layout（selectPanel 拿不到服务）');
+    process.exit(1);
+  }
+  console.log('✅ inject 已声明 ["slots", "layout"]');
+}
+
+// 19. ⭐ v0.3.9 刀2/刀3 契约
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
+    'utf8',
+  );
+
+  // 19a. 单 Bot 通知覆盖卡（clear = 恢复跟随全局）
+  if (!src.includes('function BotNotifyCard(')) {
+    console.log('❌ 缺少单 Bot 通知卡（刀 2）');
+    process.exit(1);
+  }
+  if (!src.includes("clear: clear ?? []") && !src.includes('clear: clear ?? []')) {
+    console.log('❌ 通知卡没有把 clear 传给服务端（「恢复跟随全局」会失效）');
+    process.exit(1);
+  }
+  if (!src.includes('恢复跟随')) {
+    console.log('❌ 通知卡没有「恢复跟随全局」入口');
+    process.exit(1);
+  }
+  console.log('✅ 单 Bot 通知卡存在（含「恢复跟随全局」clear 语义）');
+
+  // 19b. 聚合运行端点取代 N+1
+  if (!src.includes("/runs/aggregate?limit=20")) {
+    console.log('❌ 运行记录页没有用聚合端点（仍是每 Bot 一个请求的 N+1）');
+    process.exit(1);
+  }
+  const nPlusOne = src.match(/for \(const b of bots\)[\s\S]{0,160}\/runs\/list\?botId=/);
+  if (nPlusOne) {
+    console.log('❌ 仍存在「遍历 bots 逐个请求 /runs/list」的 N+1');
+    process.exit(1);
+  }
+  console.log('✅ 运行记录页使用 /runs/aggregate（单请求）');
+
+  // 19c. 配置保存必须一次 POST（不许再分 /bot/model 二次提交）
+  const saveIdx = src.indexOf('const saveConfig = React.useCallback(');
+  const saveBody = src.slice(saveIdx, saveIdx + 900);
+  if (/cpost\('\/bot\/model'/.test(saveBody)) {
+    console.log('❌ 配置保存仍在二次 POST /bot/model（半失败风险）');
+    process.exit(1);
+  }
+  if (!/model: \{ provider, model: modelName \}/.test(src)) {
+    console.log('❌ 配置卡没有把模型并入同一 payload');
+    process.exit(1);
+  }
+  console.log('✅ 配置保存合并为单次 POST（资料 + 模型 + 预算 + 节奏）');
 }
 
 console.log('\n=== 全部通过 ===');

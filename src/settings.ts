@@ -25,8 +25,6 @@ export interface BotSettings {
   quietHours: { start: string; end: string } | null;
 
   // ---------- 模型 ----------
-  /** 新建 Bot 时跟随当前会话的模型 */
-  followSessionModel: boolean;
   /** 推理强度 */
   reasoningEffort: 'low' | 'high' | 'max';
 
@@ -34,12 +32,6 @@ export interface BotSettings {
   dailyCny: number;
   monthlyCny: number;
   onExceed: 'stop' | 'downgrade';
-
-  // ---------- 目标 ----------
-  /** 目标达成后自动提议下一步 */
-  autoPropose: boolean;
-  /** 新建目标时的默认执行节奏（cron），空表示不自动跑 */
-  defaultCadence: string;
 
   // ---------- 高级 ----------
   /** 峰谷调度（错峰省钱） */
@@ -58,13 +50,10 @@ export const DEFAULT_SETTINGS: BotSettings = {
   notifySystem: true,
   notifyOnlyOnDecision: true,
   quietHours: null,
-  followSessionModel: true,
   reasoningEffort: 'high',
   dailyCny: 5,
   monthlyCny: 100,
   onExceed: 'stop',
-  autoPropose: true,
-  defaultCadence: '',
   costSensitiveScheduling: true,
   snapshotKeepRecent: 10,
   snapshotEnabled: true,
@@ -115,8 +104,6 @@ export function sanitizeSettings(raw: any): Partial<BotSettings> {
   };
   bool('notifySystem', raw.notifySystem);
   bool('notifyOnlyOnDecision', raw.notifyOnlyOnDecision);
-  bool('followSessionModel', raw.followSessionModel);
-  bool('autoPropose', raw.autoPropose);
   bool('costSensitiveScheduling', raw.costSensitiveScheduling);
   bool('snapshotEnabled', raw.snapshotEnabled);
   bool('sidebarEntry', raw.sidebarEntry);
@@ -139,10 +126,6 @@ export function sanitizeSettings(raw: any): Partial<BotSettings> {
     out.snapshotKeepRecent = Math.floor(Number(raw.snapshotKeepRecent));
   }
 
-  if (typeof raw.defaultCadence === 'string') {
-    out.defaultCadence = raw.defaultCadence.trim();
-  }
-
   if (raw.quietHours === null) {
     out.quietHours = null;
   } else if (
@@ -160,6 +143,10 @@ export function sanitizeSettings(raw: any): Partial<BotSettings> {
 
   return out;
 }
+
+/** 可在单 Bot 层覆盖的通知项（其余项始终跟随全局） */
+export const NOTIFY_OVERRIDE_KEYS = ['notifySystem', 'notifyOnlyOnDecision', 'quietHours'] as const;
+export type NotifyOverrideKey = (typeof NOTIFY_OVERRIDE_KEYS)[number];
 
 /** 设置存储 */
 export class SettingsStore {
@@ -188,14 +175,35 @@ export class SettingsStore {
     return readJsonSync<Partial<BotSettings>>(this.botPath(botId)) ?? {};
   }
 
+  /**
+   * 单 Bot 设置写入。
+   *
+   * ⭐ v0.3.9 刀 2：`clear` 让「恢复跟随全局」有确定语义——
+   * 直接把该键从单 Bot 文件里删掉，而不是写一个假值。
+   * quietHours 的 null 仍表示「这个 Bot 明确不免打扰」，与「跟随全局」不同。
+   */
   async setForBot(
     botId: string,
     patch: Partial<BotSettings>,
+    clear: readonly string[] = [],
   ): Promise<BotSettings> {
-    const current = await this.getForBot(botId);
-    const merged = { ...current, ...sanitizeSettings(patch) };
-    await writeJsonAtomic(this.botPath(botId), merged);
+    const stored = { ...(await this.getForBot(botId)) } as Record<string, unknown>;
+    for (const key of clear) {
+      if ((NOTIFY_OVERRIDE_KEYS as readonly string[]).includes(key)) delete stored[key];
+    }
+    const merged = { ...stored, ...sanitizeSettings(patch) };
+    if (Object.keys(merged).length === 0) {
+      await fsp.rm(this.botPath(botId), { force: true });
+    } else {
+      await writeJsonAtomic(this.botPath(botId), merged);
+    }
     return this.resolve(botId);
+  }
+
+  /** 该 Bot 覆盖了哪些键（UI 用来显示「跟随全局 / 已覆盖」） */
+  async overridesFor(botId: string): Promise<string[]> {
+    const raw = await this.getForBot(botId);
+    return NOTIFY_OVERRIDE_KEYS.filter((k) => raw[k] !== undefined);
   }
 
   /** 全局 + 单 Bot 合并后的有效设置 */

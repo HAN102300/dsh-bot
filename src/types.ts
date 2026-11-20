@@ -87,6 +87,10 @@ export interface BotSummary {
   lastRunAt?: string;
   /** 最近一次运行状态 */
   lastRunStatus?: RunStatus;
+  /** 绑定的模型（dock 快捷条展示与切换用；0.3.9 刀1） */
+  model?: { provider: string; model: string; reasoningEffort?: string };
+  /** 预算上限（dock 花费分母；0.3.9 刀1） */
+  budget?: { dailyCny?: number; monthlyCny?: number; onExceed?: string };
 
   // ---------- 「守得住」在列表行的呈现 ----------
   /** 当前目标描述（列表行「他在守：…」） */

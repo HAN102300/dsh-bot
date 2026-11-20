@@ -112,7 +112,6 @@ describe('设置合并与校验', () => {
     const s = mergeSettings();
     expect(s.notifySystem).toBe(true);
     expect(s.dailyCny).toBe(5);
-    expect(s.followSessionModel).toBe(true);
   });
 
   it('单 Bot 覆盖全局', () => {

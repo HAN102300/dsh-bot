@@ -1,3 +1,20 @@
+/*
+ * ⚠️ 本文件由 dev/concat-parts.mjs 自动拼接生成 —— 不要直接编辑！
+ * 分片清单（按文件名字典序拼接，改完分片运行: node dev/concat-parts.mjs）:
+ * - src/client/parts/00-head.js
+ * - src/client/parts/10-tokens.js
+ * - src/client/parts/20-icons.js
+ * - src/client/parts/30-style.js
+ * - src/client/parts/40-report.js
+ * - src/client/parts/50-entry.js
+ * - src/client/parts/60-forms.js
+ * - src/client/parts/70-runmodal.js
+ * - src/client/parts/80-sidebar-icon.js
+ * - src/client/parts/85-dockbar.js
+ * - src/client/parts/90-console.js
+ * - src/client/parts/95-register.js
+ */
+
 /**
  * dsh-bot 面板 — 浏览器端
  *
@@ -348,6 +365,16 @@ let styleInjected = false;
 function injectStyle() {
   if (styleInjected) return;
   styleInjected = true;
+  // ⚠️ 先移除本插件此前注入的样式标签。
+  //    热重载 / 升级后页面里可能同时存在多份：新版只覆盖它写到的属性，
+  //    旧版独有的属性（例如旧 toast 的 bottom:140px）会继续生效并叠加出新形状。
+  try {
+    for (const old of Array.from(document.querySelectorAll('style[data-plugin="' + NS + '"]'))) {
+      old.remove();
+    }
+  } catch {
+    /* 清理失败不影响注入 */
+  }
   const el = document.createElement('style');
   el.setAttribute('data-plugin', NS);
   el.textContent = `
@@ -720,6 +747,13 @@ function injectStyle() {
 .${NS}-c-mem p { margin: 0; font-size: 13px; line-height: 20px; color: var(--c-l1); }
 .${NS}-c-mem time { display: block; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
 
+/* 卡片底部说明块（通知卡的「只覆盖通知项」提示） */
+.${NS}-c-hint-block {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 0.5px solid var(--c-stroke);
+  font-size: 11px; line-height: 16px; color: var(--c-l3);
+}
+
 /* 空态 */
 .${NS}-c-empty { padding: 12px 14px; border-radius: var(--c-r-md); border: 1px dashed var(--c-l2b); background: color-mix(in srgb, var(--c-l1) 2%, transparent); }
 .${NS}-c-empty p { margin: 0 0 10px; font-size: 13px; line-height: 20px; color: var(--c-l3); }
@@ -854,6 +888,154 @@ select.${NS}-c-input { appearance: auto; }
   .${NS}-c-stat:nth-child(3) { border-left: 0; }
   .${NS}-c-stat:nth-child(n+3) { border-top: 1px solid var(--c-stroke); }
 }
+
+  /* ---------- v0.3.9 dock 快捷条 ---------- */
+  /* 结构：.dockbar（定位/边框/宽度上限）
+           └ .dockbar-row（flex 一行，overflow:hidden —— 内容再多也绝不撑破）
+           └ 弹层（row 的兄弟节点，可溢出到边框之外） */
+  .${NS}-dockbar {
+    position: relative; display: flex; align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: calc(var(--dsh-composer-card-max-width, 748px) - var(--dsh-composer-dock-inset, 0px) * 4);
+    margin: 4px auto 8px;
+    min-height: 44px; padding: 0 8px;
+    border: 1px solid var(--c-stroke, var(--dsw-alias-border-l2, rgba(255,255,255,.10)));
+    border-radius: 12px;
+    background: var(--c-card, var(--dsw-alias-settings-card-fill, rgba(255,255,255,.06)));
+    font-family: ${FONT};
+  }
+  .${NS}-dockbar-wrap { display: block; }
+  .${NS}-dockbar-row {
+    display: flex; align-items: center; gap: 6px;
+    flex: 1 1 auto; min-width: 0; overflow: hidden;
+    height: 100%;
+  }
+  /* 主区：身份/状态/花费/模型 —— 空间不够时由它让步 */
+  .${NS}-dockbar-main {
+    display: flex; align-items: center; gap: 6px;
+    flex: 1 1 auto; min-width: 0; overflow: hidden;
+  }
+  /* 操作区：执行 / 管理中心 / 收起 —— 永远完整可见，先饿死主区也不压它 */
+  .${NS}-dockbar-actions {
+    display: flex; align-items: center; gap: 6px;
+    flex: 0 0 auto;
+  }
+  .${NS}-dockbar.${NS}-dockbar-collapsed {
+    min-height: 36px; padding: 0 6px; border-radius: 999px;
+  }
+
+  /* 统一的可收缩语义：ghost 元素可缩，按钮不可缩 */
+  .${NS}-db-chip, .${NS}-db-model, .${NS}-db-cost { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+  .${NS}-db-stat, .${NS}-db-btn { flex: 0 0 auto; }
+  .${NS}-db-chip .nm, .${NS}-db-model .txt, .${NS}-db-cost .txt {
+    display: block;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  }
+
+  .${NS}-db-chip, .${NS}-db-model, .${NS}-db-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: none; background: transparent; color: var(--c-l1, var(--dsw-alias-label-primary, #ededf0));
+    font-family: inherit; cursor: pointer; white-space: nowrap;
+  }
+  .${NS}-db-chip { min-width: 0; max-width: 210px; height: 30px; padding: 0 8px; border-radius: 8px; font-size: 12px; font-weight: 500; }
+  .${NS}-db-chip:hover { background: var(--c-hover, var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.06))); }
+  .${NS}-db-chip .mark { width: 16px; height: 16px; border-radius: 5px; background: rgba(224,116,92,.16); border: 0.5px solid rgba(224,116,92,.3); display: grid; place-items: center; color: var(--c-brand, var(--dsw-alias-brand-primary, #e0745c)); flex: none; }
+  .${NS}-db-chip .chev { color: var(--c-l3, var(--dsw-alias-label-tertiary, #76777e)); flex: none; display: inline-flex; }
+  .${NS}-db-iconbtn { flex: none; padding: 0 6px; color: var(--c-l3, var(--dsw-alias-label-tertiary, #76777e)); }
+  .${NS}-db-iconbtn:hover { color: var(--c-l1, #ededf0); }
+
+  .${NS}-db-stat {
+    display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px;
+    border-radius: 999px; border: 0.5px solid var(--c-stroke, var(--dsw-alias-border-l1, rgba(255,255,255,.06)));
+    font-size: 11px; font-weight: 500; background: transparent; cursor: pointer; white-space: nowrap;
+    font-family: inherit;
+  }
+  .${NS}-db-stat .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--c-l3, #76777e); flex: none; }
+  .${NS}-db-stat .stat-text { overflow: hidden; text-overflow: ellipsis; }
+  .${NS}-db-stat-dotonly { padding: 0 7px; }
+  .${NS}-db-stat.ok { color: var(--c-ok, var(--dsw-alias-state-success-primary, #6cc08b)); border-color: rgba(108,192,139,.25); }
+  .${NS}-db-stat.ok .dot { background: var(--c-ok, #6cc08b); }
+  .${NS}-db-stat.err { color: var(--c-err, var(--dsw-alias-state-error-primary, #e06c75)); border-color: rgba(224,108,117,.3); }
+  .${NS}-db-stat.err .dot { background: var(--c-err, #e06c75); }
+  .${NS}-db-stat.run { color: var(--c-brand-text, var(--dsw-alias-brand-text, #ec8d78)); border-color: rgba(224,116,92,.35); }
+  .${NS}-db-stat.run .dot { background: var(--c-brand, #e0745c); animation: ${NS}-db-spin 1s linear infinite; }
+  @keyframes ${NS}-db-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .${NS}-db-cost { flex: 0 0 auto; font-size: 11px; color: var(--c-l2, var(--dsw-alias-label-secondary, #a8a9af)); padding: 0 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .${NS}-db-cost .lim { color: var(--c-l3, var(--dsw-alias-label-tertiary, #76777e)); }
+  .${NS}-db-cost b { color: var(--c-l1, var(--dsw-alias-label-primary, #ededf0)); font-weight: 500; }
+  .${NS}-db-space { flex: 1 1 0; min-width: 2px; }
+
+  .${NS}-db-btn { height: 30px; padding: 0 12px; border-radius: 8px; font-size: 12px; font-weight: 500; border: 1px solid var(--c-stroke, var(--dsw-alias-border-l2, rgba(255,255,255,.10))); }
+  .${NS}-db-btn:hover { background: var(--c-hover, var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.06))); }
+  .${NS}-db-btn.primary { background: var(--c-brand, var(--dsw-alias-brand-primary, #e0745c)); border-color: transparent; color: var(--dsw-alias-label-primary-foreground, #1b1210); }
+  .${NS}-db-btn.primary:hover { filter: brightness(1.06); }
+  .${NS}-db-btn.primary:disabled { opacity: .55; cursor: default; filter: none; }
+
+  .${NS}-db-model { min-width: 96px; max-width: 220px; height: 24px; padding: 0 9px; border-radius: 999px; border: 0.5px solid var(--c-stroke, var(--dsw-alias-border-l1, rgba(255,255,255,.06))); font-size: 11px; font-weight: 500; color: var(--c-l2, var(--dsw-alias-label-secondary, #a8a9af)); }
+  .${NS}-db-model:hover { color: var(--c-l1, #ededf0); background: var(--c-hover, rgba(255,255,255,.06)); }
+  .${NS}-db-model svg { flex: none; opacity: .7; }
+  .${NS}-db-model .sep { color: var(--c-l3, var(--dsw-alias-label-tertiary, #76777e)); }
+
+  /* 弹层：head 固定 / list 滚动 / foot 固定 —— 永不顶出屏幕 */
+  .${NS}-db-pop {
+    position: absolute; bottom: calc(100% + 8px); z-index: 10020;
+    width: 280px;
+    max-height: min(360px, calc(100vh - 180px));
+    display: flex; flex-direction: column;
+    padding: 6px;
+    border: 1px solid var(--c-stroke, var(--dsw-alias-border-l2, rgba(255,255,255,.10)));
+    border-radius: 12px;
+    background: var(--c-layer3, var(--dsw-alias-bg-layer-3, #242429));
+    box-shadow: 0 12px 32px rgba(0,0,0,.45);
+    color: var(--c-l1, var(--dsw-alias-label-primary, #ededf0));
+    font-family: ${FONT};
+    overflow: hidden;
+  }
+  .${NS}-db-pop.right { right: 0; }
+  .${NS}-db-pop .head { flex: none; font-size: 11px; font-weight: 500; color: var(--c-l3, #76777e); padding: 6px 8px 6px; letter-spacing: .02em; }
+  .${NS}-db-pop .list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .${NS}-db-pop .list::-webkit-scrollbar { width: 8px; }
+  .${NS}-db-pop .list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 8px; }
+  .${NS}-db-pop .foot { flex: none; border-top: 1px solid var(--c-stroke, var(--dsw-alias-border-l1, rgba(255,255,255,.06))); margin-top: 4px; padding-top: 4px; display: flex; }
+  .${NS}-db-pop .item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 7px 8px; border: none; background: transparent; border-radius: 8px;
+    cursor: pointer; text-align: left; color: inherit; font-family: inherit;
+  }
+  .${NS}-db-pop .item:hover { background: var(--c-hover, rgba(255,255,255,.06)); }
+  .${NS}-db-pop .item.active { background: var(--c-hover, rgba(255,255,255,.08)); }
+  .${NS}-db-pop .item .nm { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+  .${NS}-db-pop .item .meta { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--c-l3, #76777e); white-space: nowrap; }
+  .${NS}-db-pop .item .chev { flex: none; color: var(--c-l3, #76777e); display: inline-flex; }
+  .${NS}-db-pop .item.back { color: var(--c-l3, #76777e); font-size: 11px; }
+  .${NS}-db-pop .item .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--c-l3, #76777e); flex: none; }
+  .${NS}-db-pop .item .dot.g { background: var(--c-ok, #6cc08b); }
+  .${NS}-db-pop .item .dot.r { background: var(--c-err, #e06c75); }
+  .${NS}-db-pop .desc { font-size: 12px; line-height: 18px; color: var(--c-l2, var(--dsw-alias-label-secondary, #a8a9af)); padding: 8px; }
+  .${NS}-db-pop .desc b { color: var(--c-l1, #ededf0); font-weight: 500; }
+  .${NS}-db-pop .acts { flex: none; display: flex; gap: 8px; justify-content: flex-end; padding: 4px 6px 6px; }
+  .${NS}-db-pop .foot .mi { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 30px; border: none; background: transparent; border-radius: 8px; font-size: 12px; color: var(--c-l2, var(--dsw-alias-label-secondary, #a8a9af)); cursor: pointer; font-family: inherit; }
+  .${NS}-db-pop .foot .mi:hover { background: var(--c-hover, rgba(255,255,255,.06)); color: var(--c-l1, #ededf0); }
+  .${NS}-db-pop .foot .mi + .mi { border-left: 1px solid var(--c-stroke, var(--dsw-alias-border-l1, rgba(255,255,255,.06))); }
+
+  .${NS}-db-toast {
+    /* 屏幕中央（用户：不要挡住 Bot 快捷条）；pointer-events:none 保证不截获点击 */
+    position: fixed; top: 50%; left: 50%; bottom: auto; right: auto;
+    transform: translate(-50%, -50%);
+    height: auto; max-height: 60vh; overflow: hidden;
+    margin: 0; box-sizing: border-box;
+    padding: 8px 14px; border-radius: 10px; z-index: 10030;
+    background: var(--c-layer3, var(--dsw-alias-bg-layer-3, #242429));
+    border: 1px solid var(--c-stroke, rgba(255,255,255,.10));
+    color: var(--c-l1, var(--dsw-alias-label-primary, #ededf0));
+    font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    font-family: ${FONT};
+    pointer-events: none;
+    max-width: min(520px, 80vw);
+    text-align: center; line-height: 18px;
+  }
 `;
   document.head.appendChild(el);
 }
@@ -953,7 +1135,9 @@ try {
 window.__ModuleLoader__.load({
   id: '@zifeng1023/dsh-bot',
   factory: (require) => {
-    const inject = ['slots'];
+    // 刀1 v0.3.9：需要 layout.selectPanel 打开管理中心；layout 由宿主 ui-layout 提供，
+    // 旧宿主没有时 ctx.layout 为 undefined（所有调用点都有 try/catch 降级）。
+    const inject = ['slots', 'layout'];
 
     // ⭐ 在这里给模块级的 React / h 赋值。
     //    图标组件在模块顶层定义，它们闭包引用这两个变量；
@@ -2029,2145 +2213,10 @@ window.__ModuleLoader__.load({
         //
         // 其余内容（记忆、例行、模型、预算、快照）收进「更多」。
         // ============================================================
-
-        /** 判断 Bot 当前最需要注意的状态 */
-        function botSituation(bot, detail) {
-          const goal = detail?.goal;
-          const runs = detail?.runs ?? [];
-          const last = runs[0];
-
-          if (detail?.proposals?.length) return 'proposal';
-          if (goal?.status === 'pending_confirmation') return 'pending';
-          if (goal?.status === 'blocked') return 'blocked';
-          if (last?.status === 'failed') return 'failed';
-          if (last?.status === 'budget_exceeded') return 'budget';
-          if (!goal) return 'no-goal';
-          if (goal.status === 'achieved' || goal.status === 'abandoned') return 'done';
-          return 'normal';
-        }
-
-        /** 一行式状态摘要 —— A 方案的"摘要层" */
-        function renderSituation(bot, detail, act, busy) {
-          const sit = botSituation(bot, detail);
-          const goal = detail?.goal;
-          const last = detail?.runs?.[0];
-
-          // 统一样式的小卡片
-          const box = (children, tone) =>
-            h(
-              'div',
-              {
-                style: {
-                  margin: '0 0 8px',
-                  padding: '8px 10px',
-                  borderRadius: R_SM,
-                  background: BG_L2,
-                  border: `1px solid ${tone ?? BORDER_L1}`,
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  color: LABEL_2,
-                },
-              },
-              children,
-            );
-
-          switch (sit) {
-            case 'no-goal':
-              return box(
-                h(
-                  'div',
-                  {
-                    style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                    },
-                  },
-                  h('span', null, '他还没有目标，不知道该守什么'),
-                  h(
-                    Btn,
-                    {
-                      onClick: () =>
-                        act.onOpenForm?.({
-                          kind: 'goal',
-                          botId: bot.id,
-                          botName: bot.name,
-                        }),
-                      disabled: busy,
-                    },
-                    '设目标',
-                  ),
-                ),
-              );
-
-            case 'pending':
-              return box(
-                h(
-                  'div',
-                  null,
-                  h(
-                    'div',
-                    { style: { color: WARN, fontWeight: 600, marginBottom: 4 } },
-                    '他自己判断做完了，等你拍板',
-                  ),
-                  h('div', { style: { color: LABEL_2, marginBottom: 8 } }, goal.description),
-                  h(
-                    'div',
-                    { style: { display: 'flex', gap: 6 } },
-                    h(ConfirmBtn, {
-                      label: '确认达成',
-                      confirmLabel: '确认归档？',
-                      kind: 'primary',
-                      disabled: busy,
-                      onConfirm: () => act('goalConfirm', bot),
-                    }),
-                    h(
-                      Btn,
-                      {
-                        kind: 'danger',
-                        disabled: busy,
-                        onClick: () =>
-                          act.onOpenForm?.({
-                            kind: 'reject',
-                            botId: bot.id,
-                            botName: bot.name,
-                          }),
-                      },
-                      '驳回',
-                    ),
-                  ),
-                ),
-                WARN,
-              );
-
-            case 'blocked':
-              return box(
-                h(
-                  'div',
-                  null,
-                  h(
-                    'div',
-                    {
-                      style: { color: ERR, fontWeight: 600, marginBottom: 4 },
-                    },
-                    '卡住了，需要你处理',
-                  ),
-                  h(
-                    'div',
-                    { style: { color: LABEL_2, marginBottom: 8 } },
-                    goal.progress || '（没有更多细节）',
-                  ),
-                  // ⭐ 关键：光说"需要你处理"是不够的，必须给出**能点的动作**。
-                  //    之前这里只有一行红字，用户只能看着——
-                  //    这是个设计漏洞，不是文案问题。
-                  h(
-                    'div',
-                    { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-                    h(
-                      Btn,
-                      {
-                        kind: 'primary',
-                        disabled: busy,
-                        onClick: () =>
-                          act.onOpenForm?.({
-                            kind: 'unblock',
-                            botId: bot.id,
-                            botName: bot.name,
-                          }),
-                      },
-                      '已处理好，继续',
-                    ),
-                    h(
-                      Btn,
-                      {
-                        disabled: busy,
-                        onClick: () =>
-                          act.onOpenForm?.({
-                            kind: 'giveup',
-                            botId: bot.id,
-                            botName: bot.name,
-                          }),
-                      },
-                      '这事做不了，放弃',
-                    ),
-                  ),
-                  h(
-                    'div',
-                    {
-                      style: {
-                        fontSize: 10,
-                        color: LABEL_3,
-                        marginTop: 6,
-                      },
-                    },
-                    '比如：去把 /admin 的鉴权重配一下，再点「继续」。',
-                  ),
-                ),
-                ERR,
-              );
-
-            case 'failed':
-              return box(
-                h(
-                  'div',
-                  null,
-                  h(
-                    'div',
-                    {
-                      style: { color: ERR, fontWeight: 600, marginBottom: 4 },
-                    },
-                    '上次执行失败了',
-                  ),
-                  h(
-                    'div',
-                    { style: { color: LABEL_2, whiteSpace: 'pre-wrap' } },
-                    last?.error?.message ?? '没有记录到原因',
-                  ),
-                ),
-                ERR,
-              );
-
-            case 'budget':
-              return box(
-                h(
-                  'div',
-                  { style: { color: ERR, fontWeight: 600 } },
-                  `预算用完了：${last?.error?.message ?? '超出每日上限'}`,
-                ),
-                ERR,
-              );
-
-            case 'proposal':
-              return box(
-                h(
-                  'div',
-                  null,
-                  h(
-                    'div',
-                    { style: { color: BRAND, fontWeight: 600, marginBottom: 4 } },
-                    `他建议了 ${detail.proposals.length} 个下一步`,
-                  ),
-                  h(
-                    'div',
-                    { style: { color: LABEL_3, marginBottom: 8 } },
-                    '他不会自己开张，要不要做得你定',
-                  ),
-                  ...detail.proposals.map((p, i) =>
-                    h(
-                      'div',
-                      {
-                        key: p.id,
-                        style: {
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          paddingTop: i === 0 ? 0 : 6,
-                          marginTop: i === 0 ? 0 : 6,
-                          borderTop: i === 0 ? 'none' : `1px solid ${BORDER_L1}`,
-                        },
-                      },
-                      h(
-                        'span',
-                        { style: { flex: 1, color: LABEL_1 } },
-                        p.description,
-                      ),
-                      h(
-                        Btn,
-                        {
-                          disabled: busy,
-                          onClick: () => act('goalAccept', { ...bot, goalId: p.id }),
-                        },
-                        '接受',
-                      ),
-                    ),
-                  ),
-                ),
-                BRAND,
-              );
-
-            case 'done':
-              return box(
-                h(
-                  'div',
-                  { style: { color: OK, fontWeight: 600 } },
-                  `目标已${goal.status === 'achieved' ? '达成' : '放弃'}`,
-                ),
-                OK,
-              );
-
-            // normal
-            default: {
-              const bits = [];
-              if (goal) bits.push(`在守「${goal.description}」`);
-              if (goal?.cadence) {
-                bits.push(
-                  goal.lastFiredAt
-                    ? `上次自动跑 ${fmtAgo(goal.lastFiredAt)}`
-                    : '还没自动跑过',
-                );
-              } else {
-                bits.push('没设自动节奏');
-              }
-              if (last) bits.push(`上次 ${statusText(last.status)} ${fmtAgo(last.startedAt)}`);
-              return box(h('div', { style: { color: LABEL_3 } }, bits.join(' · ')));
-            }
-          }
-        }
-
-
-
-        /** 小标题 */
-        function SectionTitle({ children, hint }) {
-          return h(
-            'div',
-            {
-              style: {
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: 6,
-                marginBottom: 6,
-              },
-            },
-            h(
-              'span',
-              { style: { fontSize: 11, fontWeight: 600, color: LABEL_2 } },
-              children,
-            ),
-            hint
-              ? h('span', { style: { fontSize: 10, color: LABEL_3 } }, hint)
-              : null,
-          );
-        }
-
-        /** ① 目标卡：进度、下一步、待确认按钮 */
-        function renderGoalCard(bot, detail, act, busy) {
-          const goal = detail.goal;
-          // 没有目标 → 给一个明确的行动入口
-          if (!goal) {
-            return h(
-              'div',
-              { style: { marginBottom: 10 } },
-              h(SectionTitle, null, '目标'),
-              h(
-                'div',
-                {
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    fontSize: 12,
-                    color: LABEL_2,
-                  },
-                },
-                h('span', null, '他还没有目标，不知道该守什么'),
-                h(
-                  Btn,
-                  {
-                    onClick: () =>
-                      act.onOpenForm
-                        ? act.onOpenForm({ kind: 'goal', botId: bot.id, botName: bot.name })
-                        : null,
-                    disabled: busy,
-                  },
-                  '设目标',
-                ),
-              ),
-            );
-          }
-
-          const isPending = goal.status === 'pending_confirmation';
-          const isBlocked = goal.status === 'blocked';
-          const isStanding = goal.type === 'standing';
-
-          return h(
-            'div',
-            {
-              style: {
-                marginBottom: 10,
-                padding: '8px 10px',
-                borderRadius: R_SM,
-                background: BG_L2,
-                border: `1px solid ${
-                  isPending || isBlocked ? goalStatusColor(goal.status) : BORDER_L1
-                }`,
-              },
-            },
-            h(
-              'div',
-              {
-                style: {
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  marginBottom: 4,
-                },
-              },
-              h(
-                'span',
-                { style: { fontSize: 12, fontWeight: 600, color: LABEL_1 } },
-                goal.description,
-              ),
-              h(
-                'span',
-                {
-                  style: {
-                    fontSize: 10,
-                    color: goalStatusColor(goal.status),
-                    flexShrink: 0,
-                  },
-                },
-                goalStatusText(goal.status),
-              ),
-              h(
-                'span',
-                { style: { fontSize: 10, color: LABEL_3, flexShrink: 0 } },
-                goalTypeText(goal.type),
-              ),
-              isStanding
-                ? h(
-                    'span',
-                    { style: { fontSize: 10, color: LABEL_3, flexShrink: 0 } },
-                    `第 ${goal.cycleCount ?? 0} 轮`,
-                  )
-                : null,
-            ),
-            h(
-              'div',
-              { style: { fontSize: 11, color: LABEL_2, lineHeight: 1.6 } },
-              goal.progress,
-            ),
-            goal.nextStep
-              ? h(
-                  'div',
-                  { style: { fontSize: 11, color: LABEL_3, marginTop: 3 } },
-                  `下一步：${goal.nextStep}`,
-                )
-              : null,
-
-            // ⭐ 执行节奏 —— 这是"它会不会自己跑"的答案，
-            //    必须直接显示出来，不能藏在日志里。
-            h(
-              'div',
-              {
-                style: {
-                  fontSize: 10,
-                  marginTop: 5,
-                  color: goal.cadence ? LABEL_3 : WARN,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                },
-              },
-              goal.cadence
-                ? `自动执行节奏：${goal.cadence}` +
-                  (goal.lastFiredAt
-                    ? ` · 上次自动跑 ${fmtAgo(goal.lastFiredAt)}`
-                    : ' · 还没自动跑过')
-                : '⚠️ 没有设置执行节奏 —— 它不会自己跑，只有你点「执行」才动',
-            ),
-
-            // 待确认：这是「Bot 不能自己宣布胜利」的可见形态
-            isPending
-              ? h(
-                  'div',
-                  {
-                    style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginTop: 8,
-                      paddingTop: 8,
-                      borderTop: `1px solid ${BORDER_L1}`,
-                    },
-                  },
-                  h(
-                    'span',
-                    { style: { fontSize: 11, color: WARN, flex: 1 } },
-                    '他自己判断做完了，等你拍板',
-                  ),
-                  h(
-                    ConfirmBtn,
-                    {
-                      label: '确认达成',
-                      confirmLabel: '确认归档？',
-                      kind: 'primary',
-                      onConfirm: () => act('goalConfirm', bot),
-                      disabled: busy,
-                    },
-                  ),
-                  h(
-                    Btn,
-                    {
-                      kind: 'danger',
-                      onClick: () =>
-                        act.onOpenForm
-                          ? act.onOpenForm({ kind: 'reject', botId: bot.id, botName: bot.name })
-                          : null,
-                      disabled: busy,
-                    },
-                    '驳回',
-                  ),
-                )
-              : null,
-
-            // 卡住了
-            isBlocked
-              ? h(
-                  'div',
-                  {
-                    style: {
-                      fontSize: 11,
-                      color: ERR,
-                      marginTop: 8,
-                      paddingTop: 8,
-                      borderTop: `1px solid ${BORDER_L1}`,
-                    },
-                  },
-                  '卡住了，需要你介入处理。处理好后在对话框说「解除阻塞」即可。',
-                )
-              : null,
-          );
-        }
-
-        /** ② 接续建议：目标完成后的下一步候选 */
-        function renderProposals(proposals, bot, act, busy) {
-          return h(
-            'div',
-            { style: { marginBottom: 10 } },
-            h(SectionTitle, { hint: '他不会自己开张' }, '建议接下来'),
-            h(
-              'div',
-              {
-                style: {
-                  padding: '8px 10px',
-                  borderRadius: R_SM,
-                  background: BG_L2,
-                  border: `1px solid ${BORDER_L1}`,
-                },
-              },
-              ...proposals.map((p, i) =>
-                h(
-                  'div',
-                  {
-                    key: p.id,
-                    style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      paddingTop: i === 0 ? 0 : 6,
-                      marginTop: i === 0 ? 0 : 6,
-                      borderTop: i === 0 ? 'none' : `1px solid ${BORDER_L1}`,
-                    },
-                  },
-                  h(
-                    'span',
-                    { style: { fontSize: 11, color: LABEL_1, flex: 1 } },
-                    p.description,
-                  ),
-                  h(
-                    'span',
-                    { style: { fontSize: 10, color: LABEL_3, flexShrink: 0 } },
-                    goalTypeText(p.type),
-                  ),
-                  h(
-                    Btn,
-                    {
-                      onClick: () =>
-                        act('goalAccept', { ...bot, goalId: p.id }),
-                      disabled: busy,
-                    },
-                    '接受',
-                  ),
-                ),
-              ),
-              h(
-                'div',
-                { style: { marginTop: 8, textAlign: 'right' } },
-                h(
-                  Btn,
-                  { onClick: () => act('goalDismiss', bot), disabled: busy },
-                  '都不用',
-                ),
-              ),
-            ),
-          );
-        }
-
-        /** ③ 最近运行 */
-        function renderRuns(runs) {
-          return h(
-            'div',
-            { style: { marginBottom: 10 } },
-            h(SectionTitle, { hint: '全量记录，不设上限' }, '最近运行'),
-            h(
-              'div',
-              { style: { display: 'flex', flexDirection: 'column', gap: 3 } },
-              ...runs.slice(0, 3).map((r) => {
-                const blocked = (r.steps || []).filter((s) => s.blocked).length;
-                const effect = r.goalEffect;
-                return h(
-                  'div',
-                  {
-                    key: r.id,
-                    style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 11,
-                      lineHeight: '18px',
-                    },
-                  },
-                  h('span', {
-                    style: {
-                      width: 5,
-                      height: 5,
-                      borderRadius: 999,
-                      background: statusColor(r.status),
-                      flexShrink: 0,
-                    },
-                  }),
-                  h(
-                    'span',
-                    { style: { color: LABEL_3, flexShrink: 0 } },
-                    r.startedAt.slice(5, 16).replace('T', ' '),
-                  ),
-                  h(
-                    'span',
-                    { style: { color: statusColor(r.status), flexShrink: 0 } },
-                    statusText(r.status),
-                  ),
-                  r.dryRun
-                    ? h(
-                        'span',
-                        { style: { color: LABEL_3, flexShrink: 0 } },
-                        '演习',
-                      )
-                    : null,
-                  blocked
-                    ? h(
-                        'span',
-                        { style: { color: WARN, flexShrink: 0 } },
-                        `${blocked} 步拦截`,
-                      )
-                    : null,
-                  effect === 'pending'
-                    ? h('span', { style: { color: WARN, flexShrink: 0 } }, '待确认')
-                    : null,
-                  effect === 'cycle'
-                    ? h('span', { style: { color: BRAND, flexShrink: 0 } }, '轮次+1')
-                    : null,
-                  h(
-                    'span',
-                    { style: { color: LABEL_3, marginLeft: 'auto', flexShrink: 0 } },
-                    fmtCost(r.usage),
-                  ),
-                );
-              }),
-            ),
-          );
-        }
-
-        /** ④ 他记得：记忆事实 */
-        function renderMemory(semantic) {
-          const items = [...(semantic.preferences || []), ...(semantic.facts || [])].slice(0, 4);
-          if (!items.length) return null;
-          return h(
-            'div',
-            { style: { marginBottom: 10 } },
-            h(SectionTitle, { hint: '会被带进每一轮' }, '他记得'),
-            h(
-              'div',
-              { style: { display: 'flex', flexDirection: 'column', gap: 2 } },
-              ...items.map((f, i) =>
-                h(
-                  'div',
-                  {
-                    key: i,
-                    style: {
-                      fontSize: 11,
-                      color: LABEL_2,
-                      lineHeight: 1.6,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    },
-                  },
-                  `· ${f}`,
-                ),
-              ),
-            ),
-          );
-        }
-
-        /** ⑤ 例行流程 */
-        function renderRoutines(routines) {
-          return h(
-            'div',
-            { style: { marginBottom: 10 } },
-            h(SectionTitle, { hint: '目标完成也不中断' }, '例行流程'),
-            h(
-              'div',
-              { style: { display: 'flex', flexDirection: 'column', gap: 3 } },
-              ...routines.slice(0, 3).map((r) =>
-                h(
-                  'div',
-                  {
-                    key: r.id,
-                    style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 11,
-                    },
-                  },
-                  h('span', { style: { color: LABEL_1 } }, r.name || r.id),
-                  r.trigger
-                    ? h(
-                        'span',
-                        { style: { color: LABEL_3, marginLeft: 'auto' } },
-                        r.trigger,
-                      )
-                    : null,
-                ),
-              ),
-            ),
-          );
-        }
-
-        // ---------- 主面板 ----------
-        function BotDock() {
-          try {
-            const [open, setOpen] = React.useState(false);
-            const [data, setData] = React.useState(null);
-            const [err, setErr] = React.useState('');
-            const [busy, setBusy] = React.useState(false);
-            const [notice, setNotice] = React.useState('');
-            const [detailId, setDetailId] = React.useState(null);
-            const [detail, setDetail] = React.useState(null);
-            const [headHover, setHeadHover] = React.useState(false);
-            const [expanded, setExpanded] = React.useState(false);
-            /** 内嵌表单：{ kind, botId, ... } —— 取代 window.prompt */
-            const [form, setForm] = React.useState(null);
-            /** 哪个 Bot 的「更多」是展开的（A 方案：第三层折叠） */
-            const [moreOpen, setMoreOpen] = React.useState(null);
-            /** 哪个 Bot 的「配置与危险操作」展开（与「他知道什么」分属两层） */
-            const [dangerOpen, setDangerOpen] = React.useState(null);
-            /** 哪个 Bot 正在编辑资料（名称 / 职责 / 附加说明） */
-            const [editOpen, setEditOpen] = React.useState(null);
-            const [editName, setEditName] = React.useState('');
-            const [editRole, setEditRole] = React.useState('');
-            const [editNote, setEditNote] = React.useState('');
-            const [cadenceMode, setCadenceMode] = React.useState('none');
-            const [cadenceHours, setCadenceHours] = React.useState(12);
-            const [cadenceTime, setCadenceTime] = React.useState('09:00');
-            const [cadenceDays, setCadenceDays] = React.useState([1]);
-            const [cadenceCustom, setCadenceCustom] = React.useState('');
-            /** 当前视图：bots 列表 / settings 设置页 */
-            const [view, setView] = React.useState('bots');
-
-            const refresh = React.useCallback(async () => {
-              setBusy(true);
-              try {
-                const r = await fetch('/_dsh-bot/overview', {
-                  headers: { accept: 'application/json' },
-                });
-                const j = await r.json();
-                if (j?.ok) {
-                  setData(j.value);
-                  // ⚠️ 这里曾经 setErr('')，导致刚显示的错误被刷新清空。
-                  //    用户看到红框"闪了一下就没了"——比不显示还糟。
-                  //    错误只能由用户主动操作（关掉 / 再次操作）清除，
-                  //    不能被一个后台刷新顺手抹掉。
-                } else {
-                  setErr(j?.message || '读取失败');
-                }
-              } catch (e) {
-                setErr(String(e?.message || e));
-              } finally {
-                setBusy(false);
-              }
-            }, []);
-
-            React.useEffect(() => {
-              if (open && !data) void refresh();
-            }, [open, data, refresh]);
-
-            // 打开编辑时填充「附加说明」：详情异步到达，只填一次，避免覆盖用户输入
-            const editPrefilled = React.useRef(null);
-            React.useEffect(() => {
-              if (!editOpen) {
-                editPrefilled.current = null;
-                return;
-              }
-              if (editPrefilled.current === editOpen) return;
-              if (detail?.bot?.id === editOpen) {
-                setEditNote(detail.bot.systemPromptExtra ?? '');
-                const parsed = parseCadence(detail.goal?.cadence);
-                setCadenceMode(parsed.mode);
-                setCadenceHours(parsed.hours);
-                setCadenceTime(parsed.time);
-                setCadenceDays(parsed.days);
-                setCadenceCustom(parsed.custom);
-                editPrefilled.current = editOpen;
-              }
-            }, [editOpen, detail]);
-
-
-            // 展开某个 Bot 的详情时，拉一次完整数据
-            // （目标 / 运行史 / 记忆 / 例行流程 / 快照都在这个接口里）
-            const loadDetail = React.useCallback(async (botId) => {
-              if (!botId) {
-                setDetail(null);
-                return;
-              }
-              try {
-                const r = await fetch(
-                  `/_dsh-bot/bot?botId=${encodeURIComponent(botId)}`,
-                  { headers: { accept: 'application/json' } },
-                );
-                const j = await r.json();
-                if (j?.ok) setDetail(j.value);
-                else setErr(j?.message || '读取详情失败');
-              } catch (e) {
-                setErr(String(e?.message || e));
-              }
-            }, []);
-
-            React.useEffect(() => {
-              void loadDetail(detailId);
-            }, [detailId, loadDetail]);
-
-            // ⭐ 运行中实时刷新：长任务（工具循环）进行时每 3s 拉一次详情，
-            //    结束即停。轮询而不是 WebSocket——够用，不引入新依赖。
-            React.useEffect(() => {
-              if (!busy || !detailId) return;
-              const t = setInterval(() => {
-                void loadDetail(detailId);
-              }, 3000);
-              return () => clearInterval(t);
-            }, [busy, detailId, loadDetail]);
-
-            const act = React.useCallback(
-              async (kind, bot, extra) => {
-                setBusy(true);
-                setErr('');
-                setNotice('');
-                try {
-                  const post = async (path, body) => {
-                    const r = await fetch('/_dsh-bot' + path, {
-                      method: 'POST',
-                      headers: { 'content-type': 'application/json' },
-                      body: JSON.stringify(body),
-                    });
-                    return r.json();
-                  };
-
-                  let j;
-                  if (kind === 'dry') {
-                    j = await post('/dry-run', { botId: bot.id });
-                    if (j?.ok) {
-                      const st = j.value?.status;
-                      const bl = (j.value.steps || []).filter((s) => s.blocked).length;
-                      const errMsg = j.value?.error?.message;
-
-                      if (st === 'failed') {
-                        setErr(`演习失败：${errMsg ?? '未知原因'}`);
-                      } else {
-                        setNotice(
-                          `空跑完成：${bl} 步会被拦截，未产生真实影响`,
-                        );
-                      }
-                    }
-                  } else if (kind === 'run') {
-                    // ⚠️ 不用 window.confirm：Electron 里 confirm() 是空实现，
-                    //    永远返回 false，按钮会变成"点了没反应"。
-                    //    真实执行的二次确认由按钮的 armed 态承担（见下方 UI）。
-                    j = await post('/run', { botId: bot.id, confirm: true });
-                    if (j?.ok) {
-                      // ⚠️ 这里曾经把失败也当成成功提示显示（绿底 + "执行完成"）。
-                      //    API 返回 ok:true 只代表"请求执行完了"，
-                      //    运行本身可能是 failed —— 必须分开处理。
-                      const st = j.value?.status;
-                      const errMsg = j.value?.error?.message;
-
-                      if (st === 'failed' || st === 'budget_exceeded') {
-                        setErr(
-                          `执行失败（${st}）` + (errMsg ? `：${errMsg}` : ''),
-                        );
-                      } else if (st === 'partial') {
-                        const bl = (j.value.steps || []).filter(
-                          (s) => s.blocked,
-                        ).length;
-                        setNotice(
-                          `执行部分完成${bl ? `，${bl} 步被跳过` : ''}`,
-                        );
-                      } else {
-                        setNotice(`执行完成`);
-                      }
-                    } else if (j?.code === 'PRECHECK_FAILED') {
-                      // 执行前检查没过：直接把原因显示出来，
-                      // 不要让用户看到含糊的"执行失败"
-                      setErr(j.message);
-                    }
-                  } else if (kind === 'snapshot') {
-                    j = await post('/snapshot', { botId: bot.id });
-                    if (j?.ok) setNotice(`已创建快照（${j.value.fileCount} 个文件）`);
-                  } else if (kind === 'rollback') {
-                    j = await post('/rollback', { botId: bot.id, confirm: true });
-                    if (j?.ok) {
-                      setNotice(
-                        `已回滚：恢复 ${j.value.restored.length} 个，删除 ${j.value.removed.length} 个`,
-                      );
-                    }
-                  } else if (kind === 'goalConfirm') {
-                    j = await post('/goal/confirm', {
-                      botId: bot.id,
-                      confirm: true,
-                      note: extra?.note,
-                    });
-                    if (j?.ok) setNotice('已确认达成并归档，下面看看建议的下一步');
-                  } else if (kind === 'goalReject') {
-                    j = await post('/goal/reject', {
-                      botId: bot.id,
-                      note: extra?.note ?? '还没做完',
-                    });
-                    if (j?.ok) setNotice('已驳回，目标回到进行中');
-                  } else if (kind === 'goalUnblock') {
-                    j = await post('/goal/unblock', {
-                      botId: bot.id,
-                      note: extra?.note,
-                    });
-                    if (j?.ok) setNotice('已解除阻塞，目标回到进行中');
-                  } else if (kind === 'goalGiveup') {
-                    j = await post('/goal/giveup', {
-                      botId: bot.id,
-                      note: extra?.note,
-                    });
-                    if (j?.ok) setNotice('已放弃并归档');
-                  } else if (kind === 'goalAccept') {
-                    j = await post('/goal/accept', { botId: bot.id, goalId: bot.goalId });
-                    if (j?.ok) setNotice('已接受，Bot 开始守护新目标');
-                  } else if (kind === 'goalDismiss') {
-                    j = await post('/goal/dismiss', { botId: bot.id });
-                    if (j?.ok) setNotice('已忽略建议');
-                  } else if (kind === 'goalSet') {
-                    // extra = { description, goalType }
-                    j = await post('/goal/set', {
-                      botId: bot.id,
-                      description: extra.description,
-                      goalType: extra.goalType,
-                    });
-                    if (j?.ok) setNotice('目标已设定');
-                  } else if (kind === 'botCreate') {
-                    j = await post('/bot/create', {
-                      name: extra.name,
-                      role: extra.role,
-                      goal: extra.goal,
-                      goalType: extra.goalType,
-                      // ⚠️ 之前漏了这一行，导致「新建时填的节奏」被静默丢弃，
-                      //    用户以为设好了，其实 goal.json 里根本没有 cadence。
-                      cadence: extra.cadence,
-                    });
-                    if (j?.ok) setNotice(`已创建「${extra.name}」`);
-                  } else if (kind === 'botModel') {
-                    j = await post('/bot/model', {
-                      botId: bot.id,
-                      provider: extra.provider,
-                      model: extra.model,
-                    });
-                    if (j?.ok) setNotice('模型已更新');
-                  } else if (kind === 'clearRuns') {
-                    j = await post('/runs/clear', {
-                      botId: bot.id,
-                      confirm: true,
-                    });
-                    if (j?.ok) {
-                      setNotice(`已清空 ${j.value.removed} 条运行记录`);
-                    }
-                  } else if (kind === 'botDelete') {
-                    j = await post('/bot/delete', { botId: bot.id, confirm: true });
-                    if (j?.ok) {
-                      setNotice(`已删除「${bot.name}」`);
-                      setDetailId(null);
-                      setDetail(null);
-                    }
-                  }
-                  if (j && !j.ok) setErr(j.message || '操作失败');
-                  await refresh();
-                  // 目标操作会改变详情区内容，一并刷新
-                  if (detailId) await loadDetail(detailId);
-                } catch (e) {
-                  setErr(String(e?.message || e));
-                } finally {
-                  setBusy(false);
-                }
-              },
-              [refresh, loadDetail, detailId],
-            );
-
-            // 把「打开表单」挂到 act 上，让分区渲染函数能调用
-            act.onOpenForm = (f) => setForm(f);
-            act.onOpenModel = (f) => setForm({ kind: 'model', ...f });
-
-            const bots = data?.bots ?? [];
-            const stats = data?.stats;
-
-            // 卡片样式：贴近官方的 dock 卡片
-            //   · radius-md（官方用 md，不是 lg）
-            //   · 左侧内边距大、右侧小（给图标按钮留位）
-            const card = {
-              fontFamily: FONT,
-              border: `1px solid ${BORDER_L1}`,
-              borderRadius: R_MD,
-              background: BG_L2,
-              overflow: 'hidden',
-            };
-
-            // ========== 收起态 ==========
-            if (!open) {
-              return h(
-                'div',
-                { className: `${NS}-dock` },
-                h(
-                  'div',
-                  {
-                    className: `${NS}-dock-inner`,
-                    style: {
-                      ...card,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '7px 12px',
-                      cursor: 'pointer',
-                      transition: 'background .15s ease',
-                      background: headHover ? HOVER_BG : BG_L2,
-                    },
-                    onClick: () => setOpen(true),
-                    onMouseEnter: () => setHeadHover(true),
-                    onMouseLeave: () => setHeadHover(false),
-                  },
-                  h(
-                    'div',
-                    { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                    h(IconBot, { size: 16, color: BRAND }),
-                    h(
-                      'span',
-                      { style: { fontSize: 13, fontWeight: 500, color: LABEL_1 } },
-                      'Bot',
-                    ),
-                    stats ? h(Badge, { tone: 'brand' }, `${stats.botCount} 个`) : null,
-                  ),
-                  h(
-                    'div',
-                    { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                    stats
-                      ? h(
-                          'span',
-                          { style: { fontSize: 12, color: LABEL_3 } },
-                          `今日 ${fmtCny(stats.todayCostCny)}`,
-                        )
-                      : null,
-                    h(IconChevron, { size: 13 }),
-                  ),
-                ),
-              );
-            }
-
-            // ========== 展开态 ==========
-            //
-            // 布局：头部固定 → 主体滚动
-            //
-            // ⚠️ 之前所有内容平铺在一层，详情区一展开就把面板撑得很高，
-            //    超出可视区域后既看不到下面、也没法滚（因为根本没有滚动容器）。
-            //    现在用 flex 列布局 + 中部 overflow-y:auto 解决。
-            return portal(h(
-              'div',
-              {
-                className: `${NS}-dock`,
-                style: {
-                  position: 'fixed',
-                  inset: 0,
-                  zIndex: 9998,
-                  background: 'rgba(0, 0, 0, 0.45)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 20,
-                },
-                onMouseDown: (e) => {
-                  if (e.target === e.currentTarget) setOpen(false);
-                },
-              },
-              h(SidebarEntryPrompt, null),
-              h(
-                'div',
-                {
-                  className: `${NS}-dock-inner ${NS}-fade ${NS}-expanded`,
-                  // v0.3.7 修正：展开态改为视口居中的浮层。
-                  // 贴底面板会随输入框高度被挤压，无论怎么算 max-height 都会出现「顶部被挡」；
-                  // 浮层用 82vh 上限 + 内部滚动，与输入框高度彻底解耦。
-                  style: {
-                    ...card,
-                    position: 'relative',
-                    width: 'min(760px, 94vw)',
-                    maxHeight: '82vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    zIndex: 9998,
-                    boxShadow: 'var(--dsw-shadow-lv3)',
-                  },
-                },
-                // ---------- 头部（固定） ----------
-                h(
-                'div',
-                {
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderBottom: `1px solid ${BORDER_L1}`,
-                  },
-                },
-                h(
-                  'div',
-                  { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                  h(IconBot, { size: 16, color: BRAND }),
-                  h(
-                    'span',
-                    { style: { fontSize: 13, fontWeight: 600, color: LABEL_1 } },
-                    'Bot 面板',
-                  ),
-                  stats ? h(Badge, { tone: 'brand' }, `${stats.botCount} 个`) : null,
-                  // ⭐ 需要你拍板的数量（否则"他在等你"这件事永远看不见）
-                  (() => {
-                    const need = bots.filter(
-                      (x) => x.pendingConfirmCount || x.blocked,
-                    ).length;
-                    return need > 0
-                      ? h(Badge, { tone: 'warn' }, `${need} 项等你`)
-                      : null;
-                  })(),
-                  // ⭐ 对话介入的回声：最近 48h 新接手的 Bot，提示用户回来看
-                  (() => {
-                    const cnt = data?.recentAdoptions?.length ?? 0;
-                    return cnt > 0
-                      ? h(Badge, { tone: 'ok' }, `新接手 ${cnt}`)
-                      : null;
-                  })(),
-                ),
-                h(
-                  'div',
-                  { style: { display: 'flex', alignItems: 'center', gap: 6 } },
-                  stats
-                    ? h(
-                        'span',
-                        { style: { fontSize: 12, color: LABEL_3, marginRight: 2 } },
-                        `今日 ${fmtCny(stats.todayCostCny)}`,
-                      )
-                    : null,
-                  h(
-                    'button',
-                    {
-                      className: `${NS}-row-btn`,
-                      onClick: () => setForm({ kind: 'createBot' }),
-                      title: '新建 Bot',
-                      type: 'button',
-                    },
-                    '＋',
-                  ),
-                  h(
-                    'button',
-                    {
-                      className: `${NS}-row-btn`,
-                      onClick: refresh,
-                      disabled: busy,
-                      title: '刷新',
-                      type: 'button',
-                      style: { opacity: busy ? 0.5 : 1 },
-                    },
-                    h(IconRefresh, { size: 13, spinning: busy }),
-                  ),
-                  h(
-                    'button',
-                    {
-                      className: `${NS}-row-btn`,
-                      onClick: () => setOpen(false),
-                      title: '收起',
-                      type: 'button',
-                    },
-                    h(IconCollapse, { size: 13 }),
-                  ),
-                ),
-              ),
-
-              // ---------- 主体（可滚动） ----------
-              h(
-                'div',
-                { className: `${NS}-scroll` },
-
-                // ===== 设置视图 =====
-                // 设置页是"另一个房间"，打开时盖住 Bot 列表，
-                // 不再往下堆内容（否则又变成"挤成一坨"）。
-                view === 'settings'
-                  ? h(
-                      'div',
-                      { style: { padding: '4px 12px 12px' } },
-                      h(ConsoleSettings, { bots, busy }),
-                    )
-                  : null,
-
-                // ===== Bot 列表视图 =====
-                // 内嵌表单（取代 prompt）—— 必须放在详情区之上，
-                // 因为它是"当前正在进行的操作"，优先级高于展示信息
-                form
-                  ? h(FormPanel, {
-                      form,
-                      busy,
-                      onClose: () => setForm(null),
-                      onSubmit: (kind, extra) => {
-                        const target = bots.find((x) => x.id === form.botId) || {
-                          id: form.botId,
-                          name: form.botName,
-                        };
-                        setForm(null);
-                        void act(kind, target, extra);
-                      },
-                    })
-                  : null,
-
-              // 错误提示
-              //
-              // 三个改进（都来自真实反馈）：
-              //   1. 不再被 refresh 清空（之前会"闪一下就没了"）
-              //   2. 加关闭按钮 —— 何时消失由用户决定
-              //   3. 更显眼：有色背景 + 图标，不再只是一条细边框
-              err
-                ? h(
-                    'div',
-                    {
-                      style: {
-                        margin: '8px 12px',
-                        padding: '8px 10px',
-                        borderRadius: R_SM,
-                        background: 'var(--dsw-alias-bg-layer-3)',
-                        border: `1px solid ${ERR}`,
-                        color: ERR,
-                        fontSize: 12,
-                        lineHeight: 1.6,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                      },
-                    },
-                    h(
-                      'span',
-                      {
-                        style: {
-                          flexShrink: 0,
-                          fontWeight: 700,
-                          lineHeight: '18px',
-                        },
-                      },
-                      '!',
-                    ),
-                    h(
-                      'span',
-                      { style: { flex: 1, whiteSpace: 'pre-wrap' } },
-                      err,
-                    ),
-                    h(
-                      'button',
-                      {
-                        className: `${NS}-row-btn`,
-                        onClick: () => setErr(''),
-                        title: '关闭',
-                        type: 'button',
-                        style: { flexShrink: 0 },
-                      },
-                      '×',
-                    ),
-                  )
-                : null,
-              notice
-                ? h(
-                    'div',
-                    {
-                      style: {
-                        margin: '8px 12px',
-                        padding: '6px 10px',
-                        borderRadius: R_SM,
-                        background: OK_TER,
-                        color: OK,
-                        fontSize: 12,
-                      },
-                    },
-                    notice,
-                  )
-                : null,
-
-              // 空状态
-              data && bots.length === 0
-                ? h(
-                    'div',
-                    {
-                      style: {
-                        padding: '20px 14px',
-                        textAlign: 'center',
-                      },
-                    },
-                    h(
-                      'div',
-                      { style: { fontSize: 13, color: LABEL_1, marginBottom: 4 } },
-                      '还没有 Bot',
-                    ),
-                    h(
-                      'div',
-                      { style: { fontSize: 11, color: LABEL_3, marginBottom: 12 } },
-                      'Bot 是一个常驻的 AI 同事：有自己的目标、记忆和工作区',
-                    ),
-                    h(
-                      Btn,
-                      {
-                        kind: 'primary',
-                        onClick: () => setForm({ kind: 'createBot' }),
-                      },
-                      '新建 Bot',
-                    ),
-                    h(
-                      'div',
-                      {
-                        style: {
-                          marginTop: 16,
-                          paddingTop: 12,
-                          borderTop: `1px solid ${BORDER_L1}`,
-                          fontSize: 11,
-                          color: LABEL_3,
-                          textAlign: 'left',
-                        },
-                      },
-                      h('div', { style: { marginBottom: 6, color: LABEL_2 } },
-                        '也可以直接在对话框里说：',
-                      ),
-                      h(
-                        'div',
-                        {
-                          style: {
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                            lineHeight: 1.9,
-                            color: LABEL_2,
-                          },
-                        },
-                        '「创建一个 Bot，叫文件管家，把下载文件夹整理干净」',
-                        h('br'),
-                        '「创建一个 Bot，叫日报员，每天 9 点汇总 Git 提交」',
-                        h('br'),
-                        '「创建一个 Bot，叫巡检员，长期盯着构建是否变红」',
-                      ),
-                    ),
-                  )
-                : null,
-
-              // 列表
-              bots.map((b) => {
-                const isOpen = detailId === b.id;
-                const budgetMax = b.budgetDaily ?? 5;
-                return h(
-                  'div',
-                  { key: b.id, style: { borderTop: `1px solid ${BORDER_L1}` } },
-                  h(
-                    'div',
-                    {
-                      style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '10px 12px',
-                      },
-                    },
-                    // 信息
-                    h(
-                      'div',
-                      { style: { flex: 1, minWidth: 0 } },
-                      h(
-                        'div',
-                        { style: { display: 'flex', alignItems: 'center', gap: 7 } },
-                        h(
-                          'span',
-                          { style: { fontSize: 13, fontWeight: 500, color: LABEL_1 } },
-                          b.name,
-                        ),
-                        b.lastRunStatus
-                          ? h(
-                              'span',
-                              {
-                                style: {
-                                  fontSize: 10,
-                                  color: statusColor(b.lastRunStatus),
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 3,
-                                },
-                              },
-                              h('span', {
-                                style: {
-                                  width: 5,
-                                  height: 5,
-                                  borderRadius: 999,
-                                  background: statusColor(b.lastRunStatus),
-                                },
-                              }),
-                              statusText(b.lastRunStatus),
-                            )
-                          : null,
-                      ),
-                      h(
-                        'div',
-                        {
-                          style: {
-                            fontSize: 12,
-                            color: LABEL_2,
-                            marginTop: 3,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          },
-                        },
-                        b.role,
-                      ),
-                      // ⭐ 「他在守什么」——一行说清，这是 Dots 那一半的可见性
-                      b.goalDescription
-                        ? h(
-                            'div',
-                            {
-                              style: {
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 5,
-                                fontSize: 11,
-                                marginTop: 4,
-                                overflow: 'hidden',
-                                whiteSpace: 'nowrap',
-                              },
-                            },
-                            h('span', { style: { color: LABEL_3, flexShrink: 0 } }, '他在守'),
-                            h(
-                              'span',
-                              {
-                                style: {
-                                  color: LABEL_1,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                },
-                              },
-                              b.goalDescription,
-                            ),
-                            h(
-                              'span',
-                              {
-                                style: {
-                                  color: goalStatusColor(b.goalStatus),
-                                  flexShrink: 0,
-                                },
-                              },
-                              `· ${goalStatusText(b.goalStatus)}`,
-                            ),
-                            b.goalType === 'standing'
-                              ? h(
-                                  'span',
-                                  { style: { color: LABEL_3, flexShrink: 0 } },
-                                  '· 常驻',
-                                )
-                              : null,
-                          )
-                        : h(
-                            'div',
-                            { style: { fontSize: 11, color: LABEL_3, marginTop: 4 } },
-                            '还没有目标 — 点「设目标」让他知道该守什么',
-                          ),
-                      h(
-                        'div',
-                        { style: { fontSize: 11, color: LABEL_3, marginTop: 4 } },
-                        `${b.runCount} 次运行 · 上次 ${fmtAgo(b.lastRunAt)}` +
-                          (b.memoryCount ? ` · 记得 ${b.memoryCount} 条` : ''),
-                      ),
-                    ),
-                    // 动作
-                    //
-                    // 关于「演习」按钮的取舍：
-                    //   用户反馈"不明所以，作用不大"。
-                    //   原因是：它把"要不要先试"这个决策推给了用户，
-                    //   而用户并不知道试一次能看出什么。
-                    //
-                    //   更好的做法不是删掉它，而是**让它只在有意义时出现**：
-                    //   · 从没跑过 → 建议先演习
-                    //   · 已跑成功过 → 收起，避免干扰
-                    //   同时把文案从"演习"改成"先跑一遍看看"，
-                    //   让人一眼知道它做什么。
-                    h(
-                      'div',
-                      { style: { display: 'flex', gap: 6, flexShrink: 0 } },
-                      // 仅在"还没成功跑过"时显示，降低干扰
-                      !b.lastRunStatus || b.lastRunStatus === 'failed'
-                        ? h(
-                            Btn,
-                            {
-                              onClick: () => act('dry', b),
-                              disabled: busy,
-                              title: '先空跑一遍：会调用模型（有少量花费），但工具不会真实执行',
-                              icon: h(IconDryRun, { size: 13 }),
-                            },
-                            '先看看',
-                          )
-                        : null,
-                      h(
-                        Btn,
-                        {
-                          kind: 'primary',
-                          onClick: () => act('run', b),
-                          disabled: busy,
-                          title: '真实执行（执行前自动打快照）',
-                          icon: h(IconRun, { size: 13 }),
-                        },
-                        '执行',
-                      ),
-                      h(
-                        'button',
-                        {
-                          className: `${NS}-row-btn`,
-                          onClick: () => {
-                            const next = editOpen === b.id ? null : b.id;
-                            setEditOpen(next);
-                            if (next) {
-                              setEditName(b.name ?? '');
-                              setEditRole(b.role ?? '');
-                              setEditNote('');
-                              if (!detail || detail.bot?.id !== b.id) void loadDetail(b.id);
-                            }
-                          },
-                          title: editOpen === b.id ? '收起编辑' : '编辑名称 / 职责 / 附加说明 / 执行周期',
-                          type: 'button',
-                        },
-                        '编辑',
-                      ),
-                      h(
-                        'button',
-                        {
-                          className: `${NS}-row-btn`,
-                          onClick: () => setDetailId(isOpen ? null : b.id),
-                          title: isOpen ? '收起详情' : '查看详情',
-                          type: 'button',
-                        },
-                        '详情',
-                        h(IconChevron, { size: 12, open: isOpen }),
-                      ),
-                    ),
-                  ),
-
-                  // 行内编辑（v0.3.7：入口就在行上，不藏在「配置与危险操作」里）
-                  editOpen === b.id
-                    ? h(
-                        'div',
-                        {
-                          className: `${NS}-fade`,
-                          style: {
-                            padding: '10px 12px 12px',
-                            borderTop: `1px solid ${BORDER_L1}`,
-                            background: BG_L3,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 6,
-                          },
-                        },
-                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '名称'),
-                        h(Input, {
-                          value: editName,
-                          onChange: setEditName,
-                          placeholder: 'Bot 名称',
-                          autoFocus: true,
-                        }),
-                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '职责'),
-                        h(Input, {
-                          value: editRole,
-                          onChange: setEditRole,
-                          placeholder: '职责（一句话，决定它怎么干活）',
-                          multiline: true,
-                        }),
-                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '附加说明'),
-                        h(Input, {
-                          value: editNote,
-                          onChange: setEditNote,
-                          placeholder: '附加说明（可选，会写进系统提示）',
-                          multiline: true,
-                        }),
-                        h('div', { style: { fontSize: 10, color: LABEL_3 } }, '执行周期'),
-                        h(
-                          'div',
-                          { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-                          ...[
-                            ['hours', '每 N 小时'],
-                            ['daily', '每天'],
-                            ['weekly', '每周'],
-                            ['none', '不自动跑'],
-                          ].map(([mode, label]) =>
-                            h(
-                              'button',
-                              {
-                                key: mode,
-                                type: 'button',
-                                onClick: () => setCadenceMode(mode),
-                                style: {
-                                  fontSize: 11,
-                                  border: `1px solid ${cadenceMode === mode ? BRAND : BORDER_L1}`,
-                                  background: cadenceMode === mode ? BG_L3 : 'transparent',
-                                  color: cadenceMode === mode ? BRAND : LABEL_3,
-                                  borderRadius: R_SM,
-                                  padding: '3px 10px',
-                                  cursor: 'pointer',
-                                },
-                              },
-                              label,
-                            ),
-                          ),
-                        ),
-                        cadenceMode === 'hours'
-                          ? h(
-                              'div',
-                              { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                              h(
-                                'button',
-                                {
-                                  type: 'button',
-                                  onClick: () => setCadenceHours((v) => Math.max(1, v - 1)),
-                                  style: { width: 26, height: 26, borderRadius: R_SM, border: `1px solid ${BORDER_L1}`, background: 'transparent', color: LABEL_2, cursor: 'pointer', fontSize: 14 },
-                                },
-                                '−',
-                              ),
-                              h(
-                                'div',
-                                { style: { minWidth: 92, textAlign: 'center', fontSize: 12, color: LABEL_1 } },
-                                `每 ${cadenceHours} 小时`,
-                              ),
-                              h(
-                                'button',
-                                {
-                                  type: 'button',
-                                  onClick: () => setCadenceHours((v) => Math.min(24, v + 1)),
-                                  style: { width: 26, height: 26, borderRadius: R_SM, border: `1px solid ${BORDER_L1}`, background: 'transparent', color: LABEL_2, cursor: 'pointer', fontSize: 14 },
-                                },
-                                '＋',
-                              ),
-                              h('div', { style: { fontSize: 10, color: LABEL_3 } }, '整点触发'),
-                            )
-                          : null,
-                        cadenceMode === 'daily' || cadenceMode === 'weekly'
-                          ? h(
-                              'div',
-                              { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                              h('div', { style: { fontSize: 10, color: LABEL_3 } }, '时间'),
-                              h('input', {
-                                type: 'time',
-                                value: cadenceTime,
-                                onChange: (e) => setCadenceTime(e.target.value || '09:00'),
-                                style: {
-                                  width: 110,
-                                  boxSizing: 'border-box',
-                                  fontFamily: FONT,
-                                  fontSize: 12,
-                                  color: LABEL_1,
-                                  background: BG_L1,
-                                  border: `1px solid ${BORDER_L2}`,
-                                  borderRadius: R_SM,
-                                  padding: '4px 8px',
-                                  outline: 'none',
-                                },
-                              }),
-                            )
-                          : null,
-                        cadenceMode === 'weekly'
-                          ? h(
-                              'div',
-                              { style: { fontSize: 10, color: LABEL_3 } },
-                              '星期（可多选）',
-                              h(
-                                'div',
-                                { style: { display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' } },
-                                ...['日', '一', '二', '三', '四', '五', '六'].map((label, idx) =>
-                                  h(
-                                    'button',
-                                    {
-                                      key: idx,
-                                      type: 'button',
-                                      onClick: () =>
-                                        setCadenceDays((prev) =>
-                                          prev.includes(idx)
-                                            ? prev.filter((x) => x !== idx)
-                                            : [...prev, idx].sort((a, b) => a - b),
-                                        ),
-                                      style: {
-                                        width: 26,
-                                        height: 24,
-                                        borderRadius: R_SM,
-                                        border: `1px solid ${cadenceDays.includes(idx) ? BRAND : BORDER_L1}`,
-                                        background: cadenceDays.includes(idx) ? BG_L3 : 'transparent',
-                                        color: cadenceDays.includes(idx) ? BRAND : LABEL_3,
-                                        fontSize: 11,
-                                        cursor: 'pointer',
-                                      },
-                                    },
-                                    label,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : null,
-                        cadenceMode === 'custom'
-                          ? h(
-                              'div',
-                              { style: { fontSize: 10, color: WARN } },
-                              `当前是自定义 cron（${cadenceCustom}）；选择上面的模式会覆盖它。`,
-                            )
-                          : null,
-                        h(
-                          'div',
-                          { style: { fontSize: 10, color: LABEL_3 } },
-                          `将执行：${describeCadence(cadenceMode, cadenceHours, cadenceTime, cadenceDays, cadenceCustom)}`,
-                        ),
-                        h(
-                          'div',
-                          { style: { display: 'flex', gap: 6, justifyContent: 'flex-end' } },
-                          h(Btn, { onClick: () => setEditOpen(null) }, '取消'),
-                          h(
-                            Btn,
-                            {
-                              kind: 'primary',
-                              disabled: busy || !editName.trim() || !editRole.trim(),
-                              onClick: async () => {
-                                try {
-                                  const r = await fetch('/_dsh-bot/bot/update', {
-                                    method: 'POST',
-                                    headers: { 'content-type': 'application/json' },
-                                    body: JSON.stringify({
-                                      botId: b.id,
-                                      name: editName.trim(),
-                                      role: editRole.trim(),
-                                      systemPromptExtra: editNote,
-                                      cadence: buildCadence(cadenceMode, cadenceHours, cadenceTime, cadenceDays, cadenceCustom),
-                                    }),
-                                  });
-                                  const j = await r.json();
-                                  if (!j?.ok) throw new Error(j?.message || j?.code || '保存失败');
-                                  setEditOpen(null);
-                                  await loadDetail(b.id);
-                                  await refresh();
-                                } catch (err) {
-                                  setErr(String(err?.message ?? err));
-                                }
-                              },
-                            },
-                            '保存',
-                          ),
-                        ),
-                      )
-                    : null,
-
-                  // 详情
-                  //
-                  // A 方案（三层折叠）+ D 方案（状态驱动）
-                  //
-                  // 第一层：状态摘要 —— 只显示"现在需要你知道的"
-                  // 第二层：目标一行（正常时）
-                  // 第三层：「更多」折叠 —— 记忆/例行/模型/预算/快照
-                  //
-                  // 结果：常态高度 ~3 行，不再挤成一坨。
-                  isOpen
-                    ? h(
-                        'div',
-                        {
-                          className: `${NS}-fade`,
-                          style: {
-                            padding: '10px 12px 12px',
-                            borderTop: `1px solid ${BORDER_L1}`,
-                            background: BG_L3,
-                          },
-                        },
-
-                        // 没展开详情数据时给个占位，避免闪空
-                        !detail || detail.bot?.id !== b.id
-                          ? h(
-                              'div',
-                              {
-                                style: {
-                                  fontSize: 11,
-                                  color: LABEL_3,
-                                  padding: '4px 0',
-                                },
-                              },
-                              '正在读取…',
-                            )
-                          : h(
-                              'div',
-                              null,
-                              // ---------- 第一层：状态摘要 ----------
-                              renderSituation(b, detail, act, busy),
-
-                              // ---------- 第二层：目标一行 ----------
-                              detail.goal
-                                ? h(
-                                    'div',
-                                    {
-                                      style: {
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 6,
-                                        fontSize: 11,
-                                        color: LABEL_3,
-                                        marginBottom: 8,
-                                        minWidth: 0,
-                                      },
-                                    },
-                                    h(
-                                      'span',
-                                      { style: { flexShrink: 0 } },
-                                      '目标',
-                                    ),
-                                    h(
-                                      'span',
-                                      {
-                                        style: {
-                                          color: LABEL_1,
-                                          overflow: 'hidden',
-                                          textOverflow: 'ellipsis',
-                                          whiteSpace: 'nowrap',
-                                        },
-                                      },
-                                      detail.goal.description,
-                                    ),
-                                    h(
-                                      'span',
-                                      {
-                                        style: {
-                                          color: goalStatusColor(detail.goal.status),
-                                          flexShrink: 0,
-                                        },
-                                      },
-                                      goalStatusText(detail.goal.status),
-                                    ),
-                                    detail.goal.cadence
-                                      ? h(
-                                          'span',
-                                          { style: { flexShrink: 0 } },
-                                          `· ${detail.goal.cadence}`,
-                                        )
-                                      : null,
-                                  )
-                                : null,
-
-                              // ---------- 第三层：最近运行（常驻，不再藏进「更多」） ----------
-                              //
-                              // 用户明确要求：运行记录不该藏在折叠里。
-                              // 但也不能全量平铺（那就是"挤成一坨"）。
-                              // 折中：**只显示最近 2 条**，完整列表和管理进设置页。
-                              detail.runs?.length
-                                ? h(
-                                    'div',
-                                    { style: { marginBottom: 6 } },
-                                    h(
-                                      'div',
-                                      {
-                                        style: {
-                                          display: 'flex',
-                                          alignItems: 'baseline',
-                                          gap: 6,
-                                          marginBottom: 4,
-                                        },
-                                      },
-                                      h(
-                                        'span',
-                                        {
-                                          style: {
-                                            fontSize: 11,
-                                            fontWeight: 600,
-                                            color: LABEL_2,
-                                          },
-                                        },
-                                        '最近运行',
-                                      ),
-                                      h(
-                                        'span',
-                                        { style: { fontSize: 10, color: LABEL_3 } },
-                                        `共 ${detail.runs.length} 条 · 管理在设置里`,
-                                      ),
-                                    ),
-                                    ...detail.runs.slice(0, 2).map((r) =>
-                                      h(
-                                        'div',
-                                        {
-                                          key: r.id,
-                                          style: {
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 6,
-                                            fontSize: 11,
-                                            lineHeight: '18px',
-                                          },
-                                        },
-                                        h('span', {
-                                          style: {
-                                            width: 5,
-                                            height: 5,
-                                            borderRadius: 999,
-                                            background: statusColor(r.status),
-                                            flexShrink: 0,
-                                          },
-                                        }),
-                                        h(
-                                          'span',
-                                          { style: { color: LABEL_3, flexShrink: 0 } },
-                                          r.startedAt.slice(5, 16).replace('T', ' '),
-                                        ),
-                                        h(
-                                          'span',
-                                          {
-                                            style: {
-                                              color: statusColor(r.status),
-                                              flexShrink: 0,
-                                            },
-                                          },
-                                          statusText(r.status),
-                                        ),
-                                        r.dryRun
-                                          ? h(
-                                              'span',
-                                              { style: { color: LABEL_3 } },
-                                              '演习',
-                                            )
-                                          : null,
-                                        h(
-                                          'span',
-                                          {
-                                            style: {
-                                              color: LABEL_3,
-                                              marginLeft: 'auto',
-                                              flexShrink: 0,
-                                            },
-                                          },
-                                          fmtCost(r.usage),
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : null,
-
-                              // ---------- 第四层 L2：他知道什么（默认折叠） ----------
-                              h(
-                                'button',
-                                {
-                                  className: `${NS}-row-btn`,
-                                  onClick: () =>
-                                    setMoreOpen((v) => (v === b.id ? null : b.id)),
-                                  type: 'button',
-                                  style: {
-                                    fontSize: 11,
-                                    color: LABEL_3,
-                                    marginBottom: 6,
-                                  },
-                                },
-                                moreOpen === b.id
-                                  ? '收起「他知道什么」'
-                                  : '他知道什么 ▾（记忆 / 例行流程）',
-                              ),
-
-                              moreOpen === b.id
-                                ? h(
-                                    'div',
-                                    null,
-                                    detail.semantic?.facts?.length
-                                      ? renderMemory(detail.semantic)
-                                      : null,
-                                    detail.routines?.length
-                                      ? renderRoutines(detail.routines)
-                                      : null,
-                                    !(detail.semantic?.facts?.length) && !(detail.routines?.length)
-                                      ? h(
-                                          'div',
-                                          {
-                                            style: {
-                                              fontSize: 10, color: LABEL_3, lineHeight: 1.8,
-                                              padding: '6px 8px', borderRadius: R_SM, background: BG_L3,
-                                              marginBottom: 6,
-                                            },
-                                          },
-                                          '还没有长期记忆。从下一次定时运行起，每轮报告的首行结论会自动蒸馏到这里（上限 50 条，去重）。',
-                                        )
-                                      : null,
-                                  )
-                                : null,
-
-                              // ---------- 第五层 L3：配置与危险操作（默认折叠，红色隔离） ----------
-                              h(
-                                'button',
-                                {
-                                  className: `${NS}-row-btn`,
-                                  onClick: () =>
-                                    setDangerOpen((v) => (v === b.id ? null : b.id)),
-                                  type: 'button',
-                                  style: {
-                                    fontSize: 11,
-                                    color: ERR,
-                                    marginBottom: 6,
-                                  },
-                                },
-                                dangerOpen === b.id
-                                  ? '收起「配置与危险操作」'
-                                  : '配置与危险操作 ▾（模型 / 预算 / 快照 / 回滚 / 删除）',
-                              ),
-
-                              dangerOpen === b.id
-                                ? h(
-                                    'div',
-                                    {
-                                      style: {
-                                        border: `1px solid ${ERR}`,
-                                        borderRadius: R_SM,
-                                        padding: '8px 10px',
-                                        marginBottom: 6,
-                                      },
-                                    },
-                                    // 模型
-                                    h(
-                                      'div',
-                                      { style: { marginBottom: 10 } },
-                                      h(
-                                        SectionTitle,
-                                        { hint: '用哪个模型干活' },
-                                        '模型',
-                                      ),
-                                      h(
-                                        'div',
-                                        {
-                                          style: {
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 8,
-                                            fontSize: 11,
-                                          },
-                                        },
-                                        h(
-                                          'span',
-                                          {
-                                            style: {
-                                              color: LABEL_1,
-                                              fontFamily:
-                                                'ui-monospace, SFMono-Regular, Menlo, monospace',
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
-                                              whiteSpace: 'nowrap',
-                                            },
-                                          },
-                                          `${detail.bot.model?.provider ?? '?'} / ${
-                                            detail.bot.model?.model ?? '?'
-                                          }`,
-                                        ),
-                                        h(
-                                          Btn,
-                                          {
-                                            onClick: () =>
-                                              act.onOpenModel?.({
-                                                botId: b.id,
-                                                botName: b.name,
-                                                provider: detail.bot.model?.provider,
-                                                model: detail.bot.model?.model,
-                                              }),
-                                            disabled: busy,
-                                          },
-                                          '改',
-                                        ),
-                                      ),
-                                    ),
-                                    // 预算
-                                    h(
-                                      'div',
-                                      { style: { marginBottom: 10 } },
-                                      h(
-                                        'div',
-                                        {
-                                          style: {
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            fontSize: 11,
-                                            color: LABEL_2,
-                                          },
-                                        },
-                                        h('span', null, '今日花费'),
-                                        h(
-                                          'span',
-                                          { style: { color: LABEL_1 } },
-                                          `${fmtCny(b.todayCostCny)} / ¥${budgetMax.toFixed(2)}`,
-                                        ),
-                                      ),
-                                      h(Meter, {
-                                        value: b.todayCostCny,
-                                        max: budgetMax,
-                                      }),
-                                    ),
-                                    // 可撤回 + 危险操作
-                                    h(
-                                      'div',
-                                      {
-                                        style: {
-                                          display: 'flex',
-                                          gap: 6,
-                                          flexWrap: 'wrap',
-                                        },
-                                      },
-                                      h(
-                                        Btn,
-                                        {
-                                          onClick: () => act('snapshot', b),
-                                          disabled: busy,
-                                          icon: h(IconSnapshot, { size: 13 }),
-                                        },
-                                        '打快照',
-                                      ),
-                                      h(ConfirmBtn, {
-                                        label: '回滚',
-                                        confirmLabel: '确认回滚？',
-                                        kind: 'danger',
-                                        icon: h(IconRollback, { size: 13 }),
-                                        disabled: busy,
-                                        onConfirm: () => act('rollback', b),
-                                      }),
-                                      h(ConfirmBtn, {
-                                        label: '删除',
-                                        confirmLabel: '确认删除？不可恢复',
-                                        kind: 'danger',
-                                        disabled: busy,
-                                        onConfirm: () => act('botDelete', b),
-                                      }),
-                                    ),
-                                  )
-                                : null,
-                            ),
-                      )
-                    : null,
-                );
-              }),
-            ),
-
-            // 关闭滚动容器
-            ),
-            ));
-          } catch (e) {
-            report('render-error', String(e?.message ?? e));
-            return null;
-          }
-        }
-
-
+// ============================================================
+// v0.3.9 刀1：旧 dock 完整面板已删除（能力归属 0.3.8 控制台，见 PLAN-v0.3.9）。
+// 本分片只保留侧边栏图标；新的快捷条在 85-dockbar.js。
+// ============================================================
 
         /** 侧边栏图标（只画字形，颜色跟随 currentColor） */
         function BotSidebarIcon({ size = 16 }) {
@@ -4181,6 +2230,446 @@ window.__ModuleLoader__.load({
           );
         }
 
+        // ============================================================
+        // v0.3.9 dock 快捷条（刀1）
+        //
+        // 旧 BotDock 完整面板已删除（能力归属 0.3.8 控制台，见 PLAN-v0.3.9.md）。
+        // 现在对话输入框上方只有一条快捷条：
+        //   [Bot 切换] [状态] [今日花费·当前Bot] —— [模型快切] [执行] [管理中心] [收起]
+        // 决策（2026-11-20）：
+        //   · 会话未关联 Bot → chip 显示「未关联」，点开菜单选择即关联（记 localStorage）
+        //   · 花费只显示当前 Bot，全队合计在控制台
+        //   · 收起 = 一行胶囊（Bot 名 + 状态点 + 模型 pill + 展开）
+        //   · 模型快切 pill 两击换模型；完整编辑在详情页配置卡
+        // ============================================================
+
+        const DOCK_COLLAPSE_KEY = NS + ':dockCollapsed';
+        const DOCK_BOT_KEY = NS + ':dockBotId';
+
+        /** localStorage 安全读写 */
+        const dockLs = {
+          get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+          set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+        };
+
+        /** 状态点样式（成功/失败/部分/运行中/从未） */
+        function dockStatOf(bot, running, runningDry = true) {
+          if (running) return { cls: NS + '-db-stat run', label: runningDry ? '演习中' : '真跑中' };
+          if (!bot) return { cls: NS + '-db-stat idle', label: '未关联' };
+          const s = bot.lastRunStatus;
+          if (!s) return { cls: NS + '-db-stat idle', label: '从未运行' };
+          if (s === 'success') return { cls: NS + '-db-stat ok', label: '成功 · ' + fmtAgo(bot.lastRunAt) };
+          if (s === 'failed') return { cls: NS + '-db-stat err', label: '失败 · ' + fmtAgo(bot.lastRunAt) };
+          if (s === 'partial') return { cls: NS + '-db-stat err', label: '部分 · ' + fmtAgo(bot.lastRunAt) };
+          return { cls: NS + '-db-stat', label: statusText(s) + ' · ' + fmtAgo(bot.lastRunAt) };
+        }
+
+        /** 机器人形小图标（复用侧边栏字形） */
+        /** SVG 雪佛龙（下拉 / 上收），不再用字符 ▾ ⌃（不同字体下渲染丑陋） */
+        function ChevDown({ size = 10 }) {
+          return h('svg', { width: size, height: size, viewBox: '0 0 12 12', fill: 'none', 'aria-hidden': 'true' },
+            h('path', { d: 'M2.5 4.5L6 8l3.5-3.5', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+        }
+        function ChevUp({ size = 10 }) {
+          return h('svg', { width: size, height: size, viewBox: '0 0 12 12', fill: 'none', 'aria-hidden': 'true' },
+            h('path', { d: 'M2.5 7.5L6 4l3.5 3.5', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+        }
+
+        function DockBotMark() {
+          return h('span', { className: 'mark' }, h(BotSidebarIcon, { size: 10 }));
+        }
+
+        /** toast：短暂提示后消失（旧宿主没有 selectPanel 时的降级引导） */
+        function DockToast({ text }) {
+          if (!text) return null; // 空 toast 不渲染（否则输入框上方会多出一个无意义的小方块）
+          return portal(h('div', { className: NS + '-db-toast' }, text));
+        }
+
+        /**
+         * 打开管理中心。优先 ctx.layout.selectPanel('dsh-bot')（rc.5）；
+         * 失败（旧宿主 / 未注册）→ toast 引导走侧边栏图标。
+         */
+        function openConsole(ctx) {
+          try {
+            if (ctx?.layout && typeof ctx.layout.selectPanel === 'function') {
+              ctx.layout.selectPanel('dsh-bot');
+              return true;
+            }
+          } catch (e) {
+            report('select-panel-error', String(e?.message ?? e));
+          }
+          return false;
+        }
+
+        /**
+         * DockBar —— 快捷条本体。
+         * 数据源：/overview（Bot 列表 + 状态 + 今日花费，10s 轮询 + 可见性感知）。
+         */
+        /**
+         * 模型快切菜单：provider 列表 → 模型列表，两击完成切换。
+         */
+        /**
+         * 模型快切菜单：provider 列表 → 模型列表，两击完成切换。
+         * 布局：head（固定）/ list（滚动）/ foot（固定）—— provider 有 14 个时也不会顶出屏幕。
+         */
+        function ModelMenu({ shown, models, pickProvider, setPickProvider, setModel, openConsoleSafe }) {
+          const modelsFor = (pickProvider
+            ? ((models ?? []).find((x) => x && x.provider === pickProvider)?.models ?? [])
+            : []);
+          const providerList = (models ?? []).filter((x) => x && typeof x.provider === 'string');
+          return h('div', { className: NS + '-db-pop right' },
+            h('div', { className: 'head' },
+              !pickProvider
+                ? '切换到哪个 provider？（' + providerList.length + '）'
+                : pickProvider + ' · ' + modelsFor.length + ' 个模型',
+            ),
+            h('div', { className: 'list' },
+              !pickProvider
+                ? providerList.map((x) =>
+                    h('button',
+                      {
+                        key: x.provider,
+                        className: 'item' + (x.provider === shown.model?.provider ? ' active' : ''),
+                        onClick: () => setPickProvider(x.provider),
+                      },
+                      h('span', { className: 'nm' }, x.provider),
+                      h('span', { className: 'meta' }, ((x.models ?? []).length) + ' 个'),
+                      h('span', { className: 'chev' }, h(ChevDown, { size: 9 })),
+                    ),
+                  )
+                : [
+                    ...modelsFor.map((m) =>
+                      h('button',
+                        {
+                          key: m,
+                          className: 'item' + (m === shown.model?.model && pickProvider === shown.model?.provider ? ' active' : ''),
+                          onClick: () => void setModel(pickProvider, m),
+                        },
+                        h('span', { className: 'nm' }, m),
+                        m === shown.model?.model && pickProvider === shown.model?.provider
+                          ? h('span', { className: 'meta' }, '当前')
+                          : null,
+                      ),
+                    ),
+                    modelsFor.length === 0
+                      ? h('div', { className: 'desc' }, '这个 provider 没有返回模型列表，可在详情页手动填写。')
+                      : null,
+                    h('button', { className: 'item back', onClick: () => setPickProvider(null) },
+                      h('span', { className: 'nm' }, '← 返回 provider'),
+                    ),
+                  ],
+            ),
+            h('div', { className: 'foot' },
+              h('button', { className: 'mi', onClick: openConsoleSafe }, '完整编辑在详情页 →'),
+            ),
+          );
+        }
+
+        function DockBar({ ctx, onOpenConsole }) {
+          const [bots, setBots] = React.useState(null); // null = 加载中
+          const [menuOpen, setMenuOpen] = React.useState(false);
+          const [runPop, setRunPop] = React.useState(false);
+          const [modelPop, setModelPop] = React.useState(false);
+          const [models, setModels] = React.useState(null);
+          const [busy, setBusy] = React.useState(false);
+          const [runningBot, setRunningBot] = React.useState(null); // 正在演习/真跑的 botId
+          const [toast, setToast] = React.useState('');
+          const [collapsed, setCollapsed] = React.useState(() => dockLs.get(DOCK_COLLAPSE_KEY) === '1');
+          const [assocId, setAssocId] = React.useState(() => dockLs.get(DOCK_BOT_KEY) || '');
+          const rootRef = React.useRef(null);
+
+          // 点击空白处关闭弹层
+          React.useEffect(() => {
+            if (!menuOpen && !runPop && !modelPop) return undefined;
+            const close = (e) => {
+              if (rootRef.current && !rootRef.current.contains(e.target)) {
+                setMenuOpen(false); setRunPop(false); setModelPop(false);
+              }
+            };
+            document.addEventListener('mousedown', close);
+            return () => document.removeEventListener('mousedown', close);
+          }, [menuOpen, runPop, modelPop]);
+
+          // 轮询 overview（10s）；页面隐藏时不拉
+          React.useEffect(() => {
+            let stop = false;
+            let timer = null;
+            const tick = async () => {
+              if (stop || document.hidden) return;
+              try {
+                const r = await fetch('/_dsh-bot/overview', { headers: { accept: 'application/json' } });
+                const j = await r.json();
+                if (!stop && j?.ok) setBots(Array.isArray(j.value?.bots) ? j.value.bots : []);
+              } catch { /* 下轮再试 */ }
+            };
+            void tick();
+            timer = setInterval(tick, 10_000);
+            return () => { stop = true; if (timer) clearInterval(timer); };
+          }, []);
+
+          // 执行后的运行状态跟踪：30s 内每 2s 查最近一轮
+          React.useEffect(() => {
+            if (!runningBot) return undefined;
+            const t0 = Date.now();
+            const timer = setInterval(async () => {
+              try {
+                const r = await fetch('/_dsh-bot/runs/list?botId=' + encodeURIComponent(runningBot) + '&limit=1', { headers: { accept: 'application/json' } });
+                const j = await r.json();
+                const run = j?.value?.runs?.[0];
+                const started = run && Date.parse(run.startedAt || '') > t0 - 2000;
+                const done = run && run.status && run.status !== 'running' && started && Date.parse(run.endedAt || '') > t0;
+                if (done) {
+                  setRunningBot(null);
+                  setToast((run.status === 'success' ? '演习完成' : statusText(run.status)) + ' · 详情见运行记录');
+                  setTimeout(() => setToast(''), 4000);
+                } else if (Date.now() - t0 > 120_000) {
+                  setRunningBot(null);
+                  setToast('仍在运行，可去运行记录查看进度');
+                  setTimeout(() => setToast(''), 4000);
+                }
+              } catch { /* 下轮再试 */ }
+            }, 2000);
+            return () => clearInterval(timer);
+          }, [runningBot]);
+
+          // ⚠️ 防御：overview 异常时 bots 里可能出现 null/非对象条目，任何一次 map 抛错都会让整条快捷条崩掉
+          const list = (Array.isArray(bots) ? bots : []).filter((b) => b && typeof b === 'object');
+          const assoc = list.find((b) => b.id === assocId) || null;
+          const shown = assoc || list[0] || null;
+
+          /** 关联 Bot（或切换） */
+          const pickBot = (b) => {
+            setAssocId(b.id);
+            dockLs.set(DOCK_BOT_KEY, b.id);
+            setMenuOpen(false);
+          };
+
+          /** 执行（dryRun 默认 true） */
+          const doRun = async (dryRun) => {
+            if (!shown || busy) return;
+            setBusy(true);
+            setRunPop(false);
+            try {
+              const r = await fetch('/_dsh-bot/run', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                // confirm: true —— 用户已在上一步的确认浮层里显式点过（演习同样需要，
+                // 这是 /run 路由的既有安全设计：任何执行都必须带显式确认）
+                body: JSON.stringify({ botId: shown.id, dryRun, confirm: true }),
+              });
+              const j = await r.json();
+              if (j?.ok) {
+                setRunningDry(dryRun);
+                setRunningBot(shown.id);
+                setToast(dryRun ? '演习已启动' : '真实执行已启动');
+              } else {
+                setToast('启动失败：' + (j?.message || '未知错误'));
+              }
+            } catch (e) {
+              setToast('启动失败：' + String(e?.message ?? e));
+            } finally {
+              setBusy(false);
+              setTimeout(() => setToast(''), 4000);
+            }
+          };
+
+          /** 拉模型列表（首次展开模型菜单） */
+          const ensureModels = async () => {
+            if (models) return;
+            try {
+              const r = await fetch('/_dsh-bot/models', { headers: { accept: 'application/json' } });
+              const j = await r.json();
+              if (j?.ok) setModels(j.value?.available ?? []);
+            } catch { setModels([]); }
+          };
+
+          /** 两击换模型：选 provider → 选 model → POST /bot/model */
+          const [pickProvider, setPickProvider] = React.useState(null);
+          /** 当前这一轮是演习还是真跑（状态条文案要区分，否则用户以为演习在跑） */
+          const [runningDry, setRunningDry] = React.useState(true);
+          const setModel = async (provider, model) => {
+            if (!shown) return;
+            setModelPop(false); setPickProvider(null);
+            try {
+              const r = await fetch('/_dsh-bot/bot/model', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ botId: shown.id, provider, model }),
+              });
+              const j = await r.json();
+              setToast(j?.ok ? '模型已切到 ' + provider + ' / ' + model : '切换失败：' + (j?.message || '?'));
+              // 刷新列表（overview 里的 model 字段）
+              try {
+                const r2 = await fetch('/_dsh-bot/overview', { headers: { accept: 'application/json' } });
+                const j2 = await r2.json();
+                if (j2?.ok) setBots(Array.isArray(j2.value?.bots) ? j2.value.bots : []);
+              } catch {}
+            } catch (e) {
+              setToast('切换失败：' + String(e?.message ?? e));
+            }
+            setTimeout(() => setToast(''), 4000);
+          };
+
+          const toggleCollapse = () => {
+            setCollapsed((prev) => {
+              dockLs.set(DOCK_COLLAPSE_KEY, prev ? '0' : '1');
+              return !prev;
+            });
+          };
+
+          const openConsoleSafe = () => {
+            if (!onOpenConsole()) setToast('请在左侧边栏点 dsh-bot 图标打开管理中心');
+            setTimeout(() => setToast(''), 4000);
+          };
+
+          // ============================================================
+          const stat = dockStatOf(shown, !!runningBot, runningDry);
+          const running = runningBot != null;
+
+          // 渲染：收起态与展开态共用同一套弹层，只有行内容不同。
+          // 每个控件各司其职（不再"全部跳管理中心"）：
+          //   Bot chip  → Bot 切换菜单
+          //   状态 chip → 管理中心（看最近运行）
+          //   模型 pill → 模型快切菜单
+          //   箭头      → 收起 / 展开
+          // ============================================================
+          const toastEl = toast ? portal(h('div', { className: NS + '-db-toast' }, toast)) : null;
+
+          const botMenuEl = menuOpen
+            ? h('div', { className: NS + '-db-pop', style: { left: 0 } },
+                h('div', { className: 'head' }, '全部 Bot（' + list.length + '）'),
+                h('div', { className: 'list' },
+                  ...list.map((b) => {
+                    const st = b.lastRunStatus === 'success' ? 'g' : b.lastRunStatus === 'failed' ? 'r' : '';
+                    return h('button', {
+                      key: b.id,
+                      className: 'item' + (shown?.id === b.id ? ' active' : ''),
+                      onClick: () => pickBot(b),
+                    },
+                      h('span', { className: 'nm' }, b.name),
+                      h('span', { className: 'meta' },
+                        h('span', null, fmtCny(b.todayCostCny)),
+                        h('span', { className: 'dot ' + st }),
+                      ),
+                    );
+                  }),
+                  list.length === 0 ? h('div', { className: 'desc' }, '还没有 Bot') : null,
+                ),
+                h('div', { className: 'foot' },
+                  h('button', { className: 'mi', onClick: openConsoleSafe }, '＋ 新建 Bot'),
+                  h('button', { className: 'mi', onClick: openConsoleSafe }, '管理中心'),
+                ),
+              )
+            : null;
+
+          const modelMenuEl = modelPop && shown
+            ? h(ModelMenu, { shown, models, pickProvider, setPickProvider, setModel, openConsoleSafe })
+            : null;
+
+          const runConfirmEl = runPop && shown && !collapsed
+            ? h('div', { className: NS + '-db-pop right' },
+                h('div', { className: 'head' }, '演习「' + shown.name + '」的当前目标？'),
+                h('div', { className: 'desc' },
+                  '演习完整走一遍流程，', h('b', null, '不写任何文件、不花钱'), '；输出满意后可在运行详情里放行。真跑会实际执行。',
+                ),
+                h('div', { className: 'acts' },
+                  h('button', { className: NS + '-db-btn', disabled: busy, onClick: () => void doRun(false) }, '真跑一次'),
+                  h('button', { className: NS + '-db-btn primary', disabled: busy, onClick: () => void doRun(true) }, '演习一次'),
+                ),
+              )
+            : null;
+
+          /** 花费（收起态展示；展开态腾出空间给模型与操作） */
+          const costEl = shown
+            ? h('span', { className: NS + '-db-cost' },
+                h('span', { className: 'txt' },
+                  h('b', null, fmtCny(shown.todayCostCny)),
+                  running ? '' : h('span', { className: 'lim' }, ' / ' + fmtCny(shown.budget?.dailyCny)),
+                ),
+              )
+            : null;
+
+          /** 模型 pill（两态共用，点击开模型菜单） */
+          const modelEl = shown
+            ? h('button', {
+                className: NS + '-db-model',
+                onClick: () => { setModelPop(!modelPop); setMenuOpen(false); setRunPop(false); void ensureModels(); },
+                title: '当前模型：' + (shown.model?.provider || '?') + ' / ' + (shown.model?.model || '?'),
+              },
+                h('span', { className: 'txt' }, shown.model?.provider || '?', h('span', { className: 'sep' }, ' / '), shown.model?.model || '?'),
+                h(ChevDown, { size: 9 }),
+              )
+            : null;
+
+          /** Bot chip（两态共用，点击开 Bot 菜单） */
+          const botChipEl = h('button', {
+            className: NS + '-db-chip',
+            onClick: () => { setMenuOpen(!menuOpen); setRunPop(false); setModelPop(false); },
+            title: shown ? '当前 Bot：' + shown.name + '（点击切换）' : '未关联 Bot（点击选择）',
+          },
+            shown ? h(DockBotMark, null) : null,
+            h('span', { className: 'nm' }, shown ? shown.name : '未关联'),
+            h('span', { className: 'chev' }, h(ChevDown, null)),
+          );
+
+          // ---------- 收起态：一行胶囊 ----------
+          // 左：身份 + 状态点 / 右：今日花费 + 模型 + 展开
+          if (collapsed) {
+            return h('div', { className: NS + '-dockbar-wrap' },
+              toastEl,
+              h('div', {
+                className: NS + '-dock ' + NS + '-dockbar ' + NS + '-dockbar-collapsed',
+                ref: rootRef,
+              },
+                h('div', { className: NS + '-dockbar-row' },
+                  h('div', { className: NS + '-dockbar-main' },
+                    botChipEl,
+                    h('button', { className: stat.cls + ' ' + NS + '-db-stat-dotonly', title: '最近一轮：' + stat.label + ' · 点击查看运行记录', onClick: openConsoleSafe },
+                      h('span', { className: 'dot' }),
+                    ),
+                  ),
+                  h('div', { className: NS + '-dockbar-actions' },
+                    costEl,
+                    modelEl,
+                    h('button', { className: NS + '-db-chip ' + NS + '-db-iconbtn', onClick: toggleCollapse, title: '展开快捷条' },
+                      h(ChevUp, null),
+                    ),
+                  ),
+                ),
+                botMenuEl,
+                modelMenuEl,
+              ),
+            );
+          }
+
+          // ---------- 展开态 ----------
+          return h('div', { className: NS + '-dockbar-wrap' },
+            toastEl,
+            h('div', { className: NS + '-dock ' + NS + '-dockbar', ref: rootRef },
+              h('div', { className: NS + '-dockbar-row' },
+                h('div', { className: NS + '-dockbar-main' },
+                  botChipEl,
+                  h('button', { className: stat.cls, onClick: openConsoleSafe, title: '最近一轮：' + stat.label + ' · 点击查看运行记录' },
+                    h('span', { className: 'dot' }),
+                    h('span', { className: 'stat-text' }, stat.label),
+                  ),
+                  h('span', { className: NS + '-db-space' }),
+                  modelEl,
+                ),
+                h('div', { className: NS + '-dockbar-actions' },
+                  h('button', { className: NS + '-db-btn primary', disabled: busy || running || !shown, onClick: () => { setRunPop(!runPop); setMenuOpen(false); setModelPop(false); } },
+                    running ? (runningDry ? '◐ 演习中' : '◐ 真跑中') : '⚡ 执行',
+                  ),
+                  h('button', { className: NS + '-db-btn', onClick: openConsoleSafe, title: '打开管理中心' }, '管理中心 →'),
+                  h('button', { className: NS + '-db-chip ' + NS + '-db-iconbtn', onClick: toggleCollapse, title: '收起为一行胶囊' }, h(ChevUp, null)),
+                ),
+              ),
+              botMenuEl,
+              runConfirmEl,
+              modelMenuEl,
+            ),
+          );
+        }
 
         // ============================================================
         // v0.3.8 控制台
@@ -4913,6 +3402,130 @@ window.__ModuleLoader__.load({
           );
         }
 
+        // ---------- 通知卡（v0.3.9 刀 2：单 Bot 覆盖，清空即恢复跟随全局） ----------
+        function BotNotifyCard({ bot, busy, onChanged }) {
+          const [state, setState] = React.useState(null); // { effective, global, overrides }
+          const [err, setErr] = React.useState('');
+          const [saving, setSaving] = React.useState(false);
+          const botId = bot.id;
+
+          const load = React.useCallback(async () => {
+            try {
+              const j = await cget('/settings?botId=' + encodeURIComponent(botId));
+              if (!j?.ok) throw new Error(j?.message || '读取失败');
+              setState(j.value ?? null);
+              setErr('');
+            } catch (e) {
+              setErr(String(e?.message ?? e));
+            }
+          }, [botId]);
+
+          React.useEffect(() => { void load(); }, [load]);
+
+          /** 保存覆盖项；clear 里的键会从单 Bot 文件删除 → 恢复跟随全局 */
+          const save = async (patch, clear) => {
+            setSaving(true);
+            try {
+              const j = await cpost('/settings', { botId, settings: patch ?? {}, clear: clear ?? [] });
+              if (!j?.ok) throw new Error(j?.message || '保存失败');
+              await load();
+              onChanged?.();
+            } catch (e) {
+              setErr(String(e?.message ?? e));
+            } finally {
+              setSaving(false);
+            }
+          };
+
+          if (err && !state) {
+            return h(CCard, null,
+              h(CCardHead, { title: '通知' }),
+              h('div', { className: NS + '-c-card-body' }, h('div', { className: NS + '-c-err' }, err)));
+          }
+          if (!state) {
+            return h(CCard, null,
+              h(CCardHead, { title: '通知' }),
+              h('div', { className: NS + '-c-card-body' }, h('div', { className: NS + '-c-empty' }, h('p', null, '正在读取通知设置…'))));
+          }
+
+          const eff = state.effective ?? {};
+          const glob = state.global ?? {};
+          const overrides = state.overrides ?? [];
+          const has = (k) => overrides.indexOf(k) >= 0;
+          const disabled = busy || saving;
+
+          /** 一行：左侧标签 + 「跟随全局 / 已覆盖」，右侧开关或时段 + 恢复按钮 */
+          const row = (key, label, hint, globalText, control) =>
+            h(CRow, {
+              label,
+              hint: has(key) ? '已覆盖全局 · ' + hint : '跟随全局：' + globalText,
+            }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              control,
+              has(key)
+                ? h(CLink, { onClick: () => void save({}, [key]) }, '恢复跟随')
+                : null,
+            ));
+
+          const quiet = eff.quietHours;
+
+          return h(CCard, null,
+            h(CCardHead, {
+              title: '通知',
+              right: h('span', { className: NS + '-c-card-count' }, '仅对这个 Bot 生效'),
+            }),
+            h('div', { className: NS + '-c-card-body' },
+              row('notifySystem', '运行完成后系统通知', '关掉后这个 Bot 不再弹桌面通知',
+                glob.notifySystem === false ? '关' : '开',
+                h(CSwitch, {
+                  value: eff.notifySystem !== false,
+                  disabled,
+                  onChange: (v) => void save({ notifySystem: v }, []),
+                })),
+
+              row('notifyOnlyOnDecision', '仅异常时打扰', '自动轮次只在失败/部分成功时提醒',
+                glob.notifyOnlyOnDecision !== false ? '开' : '关',
+                h(CSwitch, {
+                  value: eff.notifyOnlyOnDecision !== false,
+                  disabled,
+                  onChange: (v) => void save({ notifyOnlyOnDecision: v }, []),
+                })),
+
+              h(CRow, {
+                label: '免打扰时段',
+                hint: has('quietHours')
+                  ? '已覆盖全局 · ' + (quiet ? quiet.start + ' – ' + quiet.end : '不启用')
+                  : '跟随全局：' + (glob.quietHours ? glob.quietHours.start + ' – ' + glob.quietHours.end : '不启用'),
+              }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                quiet
+                  ? h('div', { style: { display: 'flex', gap: 6 } },
+                      h('input', {
+                        type: 'time', className: NS + '-c-input', style: { width: 136 },
+                        value: quiet.start, disabled,
+                        onChange: (e) => void save({ quietHours: { start: e.target.value || '22:00', end: quiet.end } }, []),
+                      }),
+                      h('input', {
+                        type: 'time', className: NS + '-c-input', style: { width: 136 },
+                        value: quiet.end, disabled,
+                        onChange: (e) => void save({ quietHours: { start: quiet.start, end: e.target.value || '08:00' } }, []),
+                      }),
+                    )
+                  : null,
+                h(CSwitch, {
+                  value: !!quiet,
+                  disabled,
+                  onChange: (v) => void save({ quietHours: v ? { start: '22:00', end: '08:00' } : null }, []),
+                }),
+                has('quietHours') ? h(CLink, { onClick: () => void save({}, ['quietHours']) }, '恢复跟随') : null,
+              )),
+
+              err ? h('div', { className: NS + '-c-err', style: { marginTop: 8 } }, err) : null,
+              h('div', { className: NS + '-c-hint-block' },
+                '只有通知相关项可按 Bot 覆盖；其余设置（预算 / 模型 / 快照）始终针对单个 Bot。'),
+            ),
+          );
+        }
+
+
         // ---------- 配置卡（可编辑） ----------
         function BotConfigCard({ bot, detail, busy, onSave }) {
           const [editing, setEditing] = React.useState(false);
@@ -4975,16 +3588,15 @@ window.__ModuleLoader__.load({
               return;
             }
             const cadence = buildCadence(mode, hours, time, days, custom);
-            const res = await onSave(
-              {
-                name: name.trim(),
-                role: role.trim(),
-                systemPromptExtra: note,
-                cadence,
-                budget: { dailyCny: d, monthlyCny: m, onExceed },
-              },
-              { provider, model: modelName },
-            );
+            const res = await onSave({
+              name: name.trim(),
+              role: role.trim(),
+              systemPromptExtra: note,
+              cadence,
+              budget: { dailyCny: d, monthlyCny: m, onExceed },
+              // v0.3.9 刀 3：模型并入同一 POST，避免「名字改了模型没改」的半失败
+              model: { provider, model: modelName },
+            });
             if (res?.error) {
               setErr(res.error);
               return;
@@ -5489,6 +4101,7 @@ window.__ModuleLoader__.load({
             h(BotMemoryCard, { semantic: detail?.semantic }),
             h(BotRoutinesCard, { bot, routines: detail?.routines ?? [], busy, onChanged }),
             h(BotConfigCard, { bot: full, detail, busy, onSave: onSaveConfig }),
+            h(BotNotifyCard, { bot: full, busy, onChanged }),
             h(BotSnapshotsCard, { bot: full, detail, busy, act }),
           );
         }
@@ -5496,6 +4109,7 @@ window.__ModuleLoader__.load({
         // ---------- 运行记录 tab ----------
         function ConsoleRuns({ bots, busy, onOpenRun }) {
           const [runs, setRuns] = React.useState(null);
+          const [health, setHealth] = React.useState(null);
           const [filter, setFilter] = React.useState('all');
           const [page, setPage] = React.useState(0);
           const [err, setErr] = React.useState('');
@@ -5503,15 +4117,13 @@ window.__ModuleLoader__.load({
 
           const load = React.useCallback(async () => {
             try {
-              const all = [];
-              for (const b of bots) {
-                const j = await cget('/runs/list?botId=' + encodeURIComponent(b.id) + '&limit=20');
-                if (j?.ok) {
-                  for (const r of j.value?.runs ?? []) all.push({ ...r, botName: b.name, botId: b.id });
-                }
-              }
-              all.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-              setRuns(all);
+              // v0.3.9 刀 3：一次聚合请求取代「每 Bot 一个 /runs/list」的 N+1
+              const j = await cget('/runs/aggregate?limit=20');
+              if (!j?.ok) throw new Error(j?.message || '读取失败');
+              const list = (j.value?.runs ?? []).slice();
+              list.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+              setRuns(list);
+              setHealth(j.value?.health ?? null);
               setErr('');
             } catch (e) {
               setErr(String(e?.message ?? e));
@@ -5536,6 +4148,10 @@ window.__ModuleLoader__.load({
               right: h(
                 'div',
                 { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                health
+                  ? h('span', { className: NS + '-c-card-count num', title: '近 N 轮成功率' },
+                      '成功率 ' + Math.round((health.successRate ?? 0) * 100) + '% · ' + (health.sample ?? 0) + ' 轮')
+                  : null,
                 h(
                   'select',
                   {
@@ -5963,26 +4579,14 @@ window.__ModuleLoader__.load({
           );
 
           const saveConfig = React.useCallback(
-            async (payload, model) => {
+            async (payload) => {
               if (!selected?.id) return { error: '没有选中的 Bot' };
               setBusy(true);
               setErr('');
               try {
+                // v0.3.9 刀 3：资料 / 模型 / 预算 / 节奏 一次提交（服务端按段校验）
                 const j = await cpost('/bot/update', { botId: selected.id, ...payload });
                 if (!j?.ok) return { error: j?.message || '保存失败' };
-                const changed =
-                  model?.provider &&
-                  model?.model &&
-                  (model.provider !== selected.model?.provider ||
-                    model.model !== selected.model?.model);
-                if (changed) {
-                  const m = await cpost('/bot/model', {
-                    botId: selected.id,
-                    provider: model.provider,
-                    model: model.model,
-                  });
-                  if (!m?.ok) return { error: m?.message || '模型保存失败' };
-                }
                 setNotice('已保存');
                 await refresh();
                 await loadDetail(selected.id);
@@ -6329,10 +4933,11 @@ window.__ModuleLoader__.load({
           }
         }
 
+        // v0.3.9 刀1：快捷条取代旧完整面板；「管理中心」走 ctx.layout.selectPanel
         ctx.slots.inject('conversation.input.dock', () =>
           ctx.slots.register(
             { name: 'conversation.input.dock', id: 'dsh-bot', order: 20 },
-            BotDock,
+            () => h(DockBar, { ctx, onOpenConsole: () => openConsole(ctx) }),
           ),
         );
 

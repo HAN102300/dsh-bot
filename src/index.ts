@@ -870,8 +870,15 @@ function applyInner(ctx: Context, rawConfig?: Partial<BotPluginConfig>): void {
       getAvailableModels: () => listAvailableModels(ctx),
       getSettings: (botId?: string) => settingsStore.resolve(botId),
       getGlobalSettings: () => settingsStore.getGlobal(),
-      saveSettings: async (botId: string | undefined, patch: any) => {
-        if (botId) return settingsStore.setForBot(botId, patch);
+      /** v0.3.9 刀 2：单 Bot 覆盖了哪些键（UI 显示「跟随全局 / 已覆盖」） */
+      getSettingsOverrides: (botId?: string) =>
+        botId ? settingsStore.overridesFor(botId) : Promise.resolve([] as string[]),
+      /**
+       * v0.3.9 刀 2：`clear` 是「恢复跟随全局」的唯一手段——
+       * 从单 Bot 文件里删键，而不是写一个等于全局值的假覆盖。
+       */
+      saveSettings: async (botId: string | undefined, patch: any, clear?: string[]) => {
+        if (botId) return settingsStore.setForBot(botId, patch, clear ?? []);
         return settingsStore.setGlobal(patch);
       },
       doctor: doctorReport,
