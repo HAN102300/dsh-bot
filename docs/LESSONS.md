@@ -333,3 +333,22 @@ README 18 个工具、API.md 15 个、manifest 21 个、实际 22 个——四�
 - **修复**：新增 `runningDry` 状态，在发起时记录；状态条与按钮文案分别为「演习中 / 真跑中」。
   注意：新 `useState` 必须放在**既有 hooks 之后**、且使用它的计算要移到**所有 hooks 之后**
   （否则 `Cannot access 'x' before initialization` —— 本次就在 verify 阶段被抓到）。
+
+## #38 「失败」有两种到达方式：抛异常，或 finish 块里带 reason.kind=error（2026-11-24）
+
+- **现象**：社区 issue #1 —— 所有执行在 4–18ms 内失败，报「模型返回了空内容」，
+  `usage` 全 0、无网络往返。看起来像网关/密钥问题，实际是宿主在校验阶段就拒绝了。
+- **根因**（两个独立缺陷叠加）：
+  1. 插件无条件下发 `reasoningEffort`，而宿主对「模型条目未声明 reasoning」直接抛
+     `UNSUPPORTED_REASONING_EFFORT`；
+  2. 宿主的失败传递是 `{ type:"finish", reason:{ kind:"error", failure } }`，**不是** `type:"error"`。
+     我们的 `case "finish"` 只存 `stopReason`，于是真实失败落进「空输出」分支被吞掉。
+- **修复**：条件下发 effort（缺失就不传）+ `finish` 分支识别 `reason.kind` + 抛错用
+  `failure.code/message` + 命中 `UNSUPPORTED_REASONING_EFFORT` 时自动去掉 effort 重试一次。
+- **规则**：
+  1. 对接流式协议时，**先把「失败」的所有到达路径列全**（异常抛出 / error 块 / finish+kind），
+     再写 switch；只处理自己想到的那一种，真实原因就会被吞成模糊文案；
+  2. 报错必须带上游的 `code` —— 「空内容」这种概括性文案会把人引向完全错误的方向；
+  3. 能用「自动降级 + 说明」解决的兼容问题，不要只写文档让用户手改配置；
+  4. 用户报告的「几毫秒失败、usage 全 0、无网络」是**前置校验失败**的指纹，
+     不是网络/鉴权问题——排查时先看请求有没有真的发出去。

@@ -878,6 +878,12 @@ export class RoutineRunner {
         });
         record.usage = addUsage(record.usage, out.usage);
 
+        // issue #1：模型不支持 reasoningEffort 时会自动降级重试，把这件事显式记下来，
+        // 否则用户只看到"能跑了"，不知道 Bot 的推理设置实际没生效。
+        if (out.notes?.length) {
+          stepRecord.args = { ...((stepRecord.args as any) ?? {}), notes: out.notes };
+        }
+
         // 运行中预算熔断（多轮累计，越过立即停）
         const over = this.overBudget(bot, baseline, record.usage.costCny);
         if (over) {

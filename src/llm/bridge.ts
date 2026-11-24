@@ -12,7 +12,8 @@ import type { RunUsage } from '../types.js';
 export interface LlmCallInput {
   provider: string;
   model: string;
-  reasoningEffort: 'low' | 'high' | 'max';
+  /** 推理强度；缺省表示「不下发」，交由模型默认（issue #1：手写路由常无 reasoning 声明） */
+  reasoningEffort?: 'low' | 'high' | 'max';
   system?: string;
   prompt: string;
   maxTokens?: number;
@@ -42,6 +43,8 @@ export interface LlmCallOutput {
   reasoning?: string;
   usage: RunUsage;
   /** 模型本轮请求的工具调用；缺省视为无（便于测试 fake 与旧调用方） */
+  /** 调用过程中的自动降级说明（例如因模型不支持而关掉 reasoningEffort） */
+  notes?: string[];
   toolUses?: ToolUseBlock[];
   /** 结束原因（如 'end_turn' / 'tool_use'），拿不到则 undefined */
   stopReason?: string;
@@ -292,8 +295,12 @@ export function createLlmInvoker(ctx: any) {
       provider: input.provider,
       model: input.model,
       messages,
-      reasoningEffort: input.reasoningEffort,
     };
+    // ⚠️ v0.3.10（issue #1）：只在有值时才下发。
+    //    宿主 resolveCallWithInfo 对「模型条目未声明 reasoning」+「请求带了 effort」
+    //    会直接抛 UNSUPPORTED_REASONING_EFFORT —— 手写路由的模型条目常常没有该字段。
+    const sentEffort = input.reasoningEffort;
+    if (sentEffort !== undefined) options.reasoningEffort = sentEffort;
     if (input.maxTokens !== undefined) {
       options.maxTokens = input.maxTokens;
     } else {
@@ -315,11 +322,11 @@ export function createLlmInvoker(ctx: any) {
     if (input.signal) options.signal = input.signal;
     if (input.tools?.length) options.tools = input.tools;
 
-    try {
+    /** 把「一次流式尝试」跑完，结果写回上面的状态变量（供失败重试用） */
+    const consumeStream = async (opts: any): Promise<void> => {
       // ⭐ R3b（v0.3.1）：流「空闲」超时——流建立了但 90 秒无任何新 chunk 的
       //    挂死场景（网络半开、适配器内部卡住）。注意是空闲超时而非总时长：
       //    思考型模型合法长跑（16k tokens 数分钟）只要持续出 chunk 就不误杀。
-      //    实现：90s 计时器 + 每收到 chunk 重置；超时抛错交给 R1 重试兜底。
       const IDLE_MS = 90_000;
       const idleController = new AbortController();
       const resetIdle = () => {
@@ -327,76 +334,121 @@ export function createLlmInvoker(ctx: any) {
         idleTimer = setTimeout(() => idleController.abort(new Error('stream idle > 90s')), IDLE_MS);
       };
       resetIdle();
-      const combined = options.signal
-        ? AbortSignal.any([options.signal, idleController.signal])
+      const combined = opts.signal
+        ? AbortSignal.any([opts.signal, idleController.signal])
         : idleController.signal;
-      options.signal = combined;
-      for await (const chunk of llm.stream(options)) {
-        resetIdle();
-        switch (chunk?.type) {
-          case 'text-delta':
-            text += chunk.text ?? '';
-            break;
-          case 'reasoning-delta':
-            reasoning += chunk.text ?? '';
-            break;
-          case 'usage':
-            usage = chunk.usage;
-            break;
-          case 'finish':
-            stopReason = chunk.stopReason ?? chunk.finishReason ?? chunk.reason;
-            break;
-          case 'tool-call-delta': {
-            // ⭐ 流式工具调用增量（2026-10-28）：our-free-model/openrouter 等适配器
-            //    以增量块发原生 tool call，且可能不回传含完整块的 block-end。
-            //    之前把这类 chunk 丢进 oddChunks → 模型的回答被静默吞掉 → 空内容。
-            //    现按 dsh-llm 累积协议（index 分片、id/name/argumentsDelta 增量）
-            //    自行组装完整 tool-use。
-            const idx = Number(chunk.index ?? 0);
-            let partial = streamingToolCalls.get(idx);
-            if (!partial) {
-              partial = { id: undefined, name: undefined, args: '' };
-              streamingToolCalls.set(idx, partial);
+      opts.signal = combined;
+      try {
+        for await (const chunk of llm.stream(opts)) {
+          resetIdle();
+          switch (chunk?.type) {
+            case 'text-delta':
+              text += chunk.text ?? '';
+              break;
+            case 'reasoning-delta':
+              reasoning += chunk.text ?? '';
+              break;
+            case 'usage':
+              usage = chunk.usage;
+              break;
+            case 'finish': {
+              // ⭐ v0.3.10（issue #1）：宿主的适配器失败是「finish 块 + reason.kind=error」，
+              //    不是 type:'error'。旧代码只在这里存 stopReason，把真实失败吞成了
+              //    「模型返回了空内容」——用户完全看不到 UNSUPPORTED_REASONING_EFFORT 这类原因。
+              const reason = chunk.reason;
+              if (reason && typeof reason === 'object' && reason.kind !== undefined && reason.kind !== 'stop' && reason.kind !== 'length') {
+                streamError = { type: 'finish', reason };
+              } else {
+                stopReason = chunk.stopReason ?? chunk.finishReason ?? reason;
+              }
+              break;
             }
-            if (typeof chunk.id === 'string') partial.id = chunk.id;
-            if (typeof chunk.name === 'string') partial.name = chunk.name;
-            if (typeof chunk.argumentsDelta === 'string') partial.args += chunk.argumentsDelta;
-            break;
-          }
-          case 'block-end': {
-            // 兜底：若增量缺失，从完整块补齐
-            const block = chunk.block;
-            if (block?.type === 'text' && !text) text = block.text ?? '';
-            if (block?.type === 'reasoning' && !reasoning) reasoning = block.text ?? '';
-            // ⭐ 工具协议：模型发起的工具调用以完整块到达
-            //    （块类型名做宽容兼容：tool_use / toolUse / tool_call / tool-call）
-            const tu = asToolUse(block);
-            if (tu) toolUses.push(tu);
-            break;
-          }
-          case 'error':
-          case 'adapter-failure':
-          case 'aborted': {
-            // ⭐ 这些是真实的失败信号，必须保留下来
-            streamError = chunk;
-            break;
-          }
-          case 'block-start':
-          case 'block-delta':
-            break;
-          default: {
-            // 未知类型：记下来，别静默丢（未登记的增量变体可能落在这里）
-            if (chunk?.type) oddChunks.push(String(chunk.type));
-            break;
+            case 'tool-call-delta': {
+              // ⭐ 流式工具调用增量（2026-10-28）：our-free-model/openrouter 等适配器
+              //    以增量块发原生 tool call，且可能不回传含完整块的 block-end。
+              const idx = Number(chunk.index ?? 0);
+              let partial = streamingToolCalls.get(idx);
+              if (!partial) {
+                partial = { id: undefined, name: undefined, args: '' };
+                streamingToolCalls.set(idx, partial);
+              }
+              if (typeof chunk.id === 'string') partial.id = chunk.id;
+              if (typeof chunk.name === 'string') partial.name = chunk.name;
+              if (typeof chunk.argumentsDelta === 'string') partial.args += chunk.argumentsDelta;
+              break;
+            }
+            case 'block-end': {
+              const block2 = chunk.block;
+              if (block2?.type === 'text' && !text) text = block2.text ?? '';
+              if (block2?.type === 'reasoning' && !reasoning) reasoning = block2.text ?? '';
+              const tu = asToolUse(block2);
+              if (tu) toolUses.push(tu);
+              break;
+            }
+            case 'error':
+            case 'adapter-failure':
+            case 'aborted': {
+              streamError = chunk;
+              break;
+            }
+            case 'block-start':
+            case 'block-delta':
+              break;
+            default: {
+              if (chunk?.type) oddChunks.push(String(chunk.type));
+              break;
+            }
           }
         }
+      } catch (e: any) {
+        // 适配器也可能直接抛（而不是发 finish 块）——同样归一成「失败状态」，
+        // 让上层决定是重试还是抛出，不要在这里就丢失 code。
+        streamError = { type: 'thrown', error: e };
+      } finally {
+        if (idleTimer) clearTimeout(idleTimer);
       }
-      if (idleTimer) clearTimeout(idleTimer);
-    } catch (e: any) {
-      if (idleTimer) clearTimeout(idleTimer);
-      // 流式调用抛错（鉴权 / 网络 / 适配器）——保留原始信息
-      const detail = describeLlmError(e);
-      throw new Error(`模型调用失败（${input.provider}/${input.model}）：${detail}`);
+    };
+
+    /** 从任意失败形状里取出 { code, message }（宿主用 reason.failure，我们归一后用 error） */
+    const failureOf = (err: any): { code?: string; message?: string } => {
+      if (!err) return {};
+      const f = err.reason?.failure ?? err.failure ?? err.error ?? err;
+      if (!f) return {};
+      return {
+        code: typeof f.code === 'string' ? f.code : undefined,
+        message: typeof f.message === 'string' ? f.message : undefined,
+      };
+    };
+
+    await consumeStream(options);
+
+    // ⭐ v0.3.10（issue #1）自动降级：
+    //    模型条目未声明 reasoning 级别时，宿主会拒绝带 effort 的请求。
+    //    这里去掉 reasoningEffort 重试一次——用户不必手改 identity.json 或 patch 配置。
+    const notes: string[] = [];
+    if (
+      streamError &&
+      sentEffort !== undefined &&
+      failureOf(streamError).code === 'UNSUPPORTED_REASONING_EFFORT'
+    ) {
+      // 重置状态后重试
+      text = '';
+      reasoning = '';
+      usage = undefined;
+      stopReason = undefined;
+      streamError = undefined;
+      oddChunks.length = 0;
+      toolUses.length = 0;
+      streamingToolCalls.clear();
+      const retryOptions = { ...options };
+      delete retryOptions.reasoningEffort;
+      await consumeStream(retryOptions);
+      if (!streamError) {
+        notes.push(
+          `模型 ${input.provider}/${input.model} 未声明推理级别，已自动关闭 reasoningEffort=${sentEffort} 重试。` +
+            '要保留该设置，请在模型条目里声明 reasoningEfforts。',
+        );
+      }
     }
 
     // ⭐ 流式组装的 tool-use 兜底合并：若适配器只发了增量块、没有 block-end
@@ -415,7 +467,8 @@ export function createLlmInvoker(ctx: any) {
 
     // 有错误 chunk：优先报它，而不是让上层看到"空输出"
     if (streamError && !text && toolUses.length === 0) {
-      const detail = describeLlmError(streamError.error ?? streamError);
+      const f = failureOf(streamError);
+      const detail = describeLlmError({ code: f.code, message: f.message });
       throw new Error(`模型返回错误（${input.provider}/${input.model}）：${detail}`);
     }
 
@@ -468,6 +521,7 @@ export function createLlmInvoker(ctx: any) {
     });
 
     return {
+      notes: notes.length ? notes : undefined,
       text,
       reasoning: reasoning || undefined,
       usage: {
