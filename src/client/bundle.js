@@ -740,10 +740,151 @@ function injectStyle() {
 .${NS}-c-run .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--c-l4); }
 .${NS}-c-run .cv { color: var(--c-l4); display: flex; }
 
-/* 记忆 */
-.${NS}-c-mem { display: flex; gap: 8px; padding: 10px 0; border-top: 1px solid var(--c-stroke); }
-.${NS}-c-mem:first-of-type { border-top: 0; }
-.${NS}-c-mem .kd { flex: none; margin-top: 1px; }
+/* ============================================================
+   记忆（v0.3.11）：限高滚动 + 时间栏对齐 + 全量弹窗
+   —— 旧实现无高度上限，21 条就撑到 1100px，把下面的卡片挤走。
+   ============================================================ */
+.${NS}-c-memwrap { position: relative; }
+.${NS}-c-memwrap::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 30px;
+  pointer-events: none; opacity: 1; transition: opacity .2s;
+  background: linear-gradient(180deg, transparent, var(--c-card));
+}
+.${NS}-c-memwrap.at-bottom::after { opacity: 0; }
+
+.${NS}-c-memscroll {
+  max-height: 258px; overflow-y: auto; overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.${NS}-c-memscroll::-webkit-scrollbar { width: 8px; }
+.${NS}-c-memscroll::-webkit-scrollbar-track { background: transparent; }
+.${NS}-c-memscroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; }
+.${NS}-c-memscroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.24); }
+
+/* 一行：92px 时间 | 6px 圆点 | 正文 */
+.${NS}-c-mem {
+  display: grid; grid-template-columns: 92px 6px minmax(0, 1fr);
+  gap: 10px; align-items: start;
+  padding: 9px 0; border-top: 0.5px solid var(--c-stroke);
+}
+.${NS}-c-mem:first-child { border-top: 0; }
+
+/* 时间栏：等宽数字，日期/时刻分段着色 → 纵向严格对齐 */
+.${NS}-c-mem-time {
+  font-size: 11px; line-height: 20px; white-space: nowrap;
+  font-variant-numeric: tabular-nums; color: var(--c-l3);
+}
+.${NS}-c-mem-time .d { color: var(--c-l2); }
+.${NS}-c-mem-time .t { color: var(--c-l3); }
+.${NS}-c-mem-time .none { color: var(--c-l4); }
+
+.${NS}-c-mem-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--c-brand); margin-top: 7px;
+}
+.${NS}-c-mem-dot.pref { background: var(--c-warn); }
+
+.${NS}-c-mem-main { min-width: 0; }
+.${NS}-c-mem-text {
+  margin: 0; font-size: 13px; line-height: 20px; color: var(--c-l2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; cursor: pointer;
+}
+.${NS}-c-mem-text.open { -webkit-line-clamp: unset; }
+.${NS}-c-mem-text b { color: var(--c-l1); font-weight: 500; }
+.${NS}-c-mem-text mark {
+  background: rgba(224,116,92,.28); color: var(--c-l1);
+  border-radius: 3px; padding: 0 2px;
+}
+.${NS}-c-kd {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px;
+  border-radius: 999px; background: var(--c-layer3); color: var(--c-l2);
+  font-size: 11px; font-weight: 500; white-space: nowrap;
+  margin-right: 6px; vertical-align: 1px;
+}
+.${NS}-c-kd.pref { color: var(--c-warn); background: rgba(224,178,92,.12); }
+
+.${NS}-c-mem-more {
+  font-size: 11px; color: var(--c-brand-text);
+  cursor: pointer; margin-top: 1px; display: inline-block;
+}
+
+/* 卡片底栏：显示 N/M + 查看全部 */
+.${NS}-c-memfoot {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-top: 0.5px solid var(--c-stroke);
+  font-size: 12px; color: var(--c-l3);
+}
+.${NS}-c-memfoot .grow { flex: 1; }
+
+/* ---------- 记忆全量弹窗 ---------- */
+.${NS}-c-mm-back {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; font-family: ${FONT};
+}
+.${NS}-c-mm {
+  width: 100%; max-width: 620px; max-height: min(78vh, 720px);
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 0.5px solid var(--c-stroke, var(--dsw-alias-border-l2));
+  border-radius: var(--c-r-lg);
+  background: var(--c-layer3, var(--dsw-alias-bg-layer-3, #242429));
+  box-shadow: 0 24px 64px rgba(0,0,0,.55);
+}
+.${NS}-c-mm-head {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-bottom: 0.5px solid var(--c-stroke);
+}
+.${NS}-c-mm-head .t { font-size: 15px; font-weight: 600; color: var(--c-l1); }
+.${NS}-c-mm-head .c { font-size: 12px; color: var(--c-l3); }
+.${NS}-c-mm-x {
+  margin-left: auto; width: 26px; height: 26px; border-radius: var(--c-r-md);
+  border: none; background: transparent; color: var(--c-l3);
+  cursor: pointer; display: grid; place-items: center;
+  font-size: 15px; line-height: 1; font-family: inherit;
+}
+.${NS}-c-mm-x:hover { background: var(--c-hover); color: var(--c-l1); }
+
+.${NS}-c-mm-tools {
+  flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 12px 18px; border-bottom: 0.5px solid var(--c-stroke);
+}
+.${NS}-c-mm-search {
+  flex: 1; min-width: 180px; height: 30px; border-radius: var(--c-r-md);
+  border: 0.5px solid var(--c-stroke); background: var(--c-card);
+  color: var(--c-l1); font-size: 12px; padding: 0 10px; outline: none;
+  font-family: inherit;
+}
+.${NS}-c-mm-search::placeholder { color: var(--c-l4); }
+.${NS}-c-mm-search:focus { border-color: var(--c-l3); }
+.${NS}-c-mm-chip {
+  height: 26px; padding: 0 11px; border-radius: 999px;
+  border: 0.5px solid var(--c-stroke); background: transparent;
+  color: var(--c-l2); font-size: 11px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 5px;
+  cursor: pointer; font-family: inherit;
+}
+.${NS}-c-mm-chip:hover { background: var(--c-hover); }
+.${NS}-c-mm-chip.on { background: var(--c-layer3); color: var(--c-l1); }
+.${NS}-c-mm-chip .n { color: var(--c-l3); font-variant-numeric: tabular-nums; }
+.${NS}-c-mm-chip.on .n { color: var(--c-l2); }
+
+.${NS}-c-mm-list {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: 4px 18px 12px;
+}
+.${NS}-c-mm-list::-webkit-scrollbar { width: 8px; }
+.${NS}-c-mm-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; }
+
+.${NS}-c-mm-empty { padding: 28px 8px; text-align: center; font-size: 12px; color: var(--c-l3); }
+
+.${NS}-c-mm-foot {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-top: 0.5px solid var(--c-stroke);
+  font-size: 11px; color: var(--c-l3);
+}
+.${NS}-c-mm-foot .grow { flex: 1; }
 .${NS}-c-mem p { margin: 0; font-size: 13px; line-height: 20px; color: var(--c-l1); }
 .${NS}-c-mem time { display: block; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
 
@@ -3322,40 +3463,290 @@ window.__ModuleLoader__.load({
         }
 
         // ---------- 记忆卡 ----------
-        function BotMemoryCard({ semantic, limit, onAll }) {
-          const facts = semantic?.facts ?? [];
-          const prefs = semantic?.preferences ?? [];
-          const rows = [
-            ...facts.map((f) => ({ kind: '事实', text: f })),
-            ...prefs.map((p) => ({ kind: '偏好', text: p })),
-          ];
-          const view = limit ? rows.slice(0, limit) : rows;
+        // ---------- 记忆（v0.3.11：限高滚动 + 时间栏 + 全量弹窗） ----------
+        //
+        // 旧实现是「无上限平铺」：21 条就把卡片撑到 1100px，把下面的配置/快照卡挤走。
+        // 现在的结构：
+        //   · 卡片高度恒定（约 5 条），内部滚动，底部渐隐提示「还有」
+        //   · 每行左侧固定时间栏（等宽数字），日期与时刻分两段着色 → 纵向严格对齐
+        //   · 「查看全部」打开弹窗：搜索实时高亮 + 事实/偏好筛选
+        //
+        // 时间从正文前缀解析：semantic.facts 是 string[]，时间戳由模型写在开头
+        //（形如 "[11-26 16:00] …"），当前数据 100% 命中，零迁移成本。
+
+        /** 把 "[MM-DD HH:mm] 正文" 拆成 { day, time, body, kind } */
+        function parseMemoryEntry(text, kind) {
+          const raw = String(text ?? '').trim();
+          const m = raw.match(/^\[(\d{2}-\d{2}) (\d{2}:\d{2})\]\s*/);
+          if (m) return { day: m[1], time: m[2], body: raw.slice(m[0].length), kind };
+          return { day: null, time: null, body: raw, kind };
+        }
+
+        /** 语义记忆 → 行数组（事实在前、偏好在后，各自保持写入顺序） */
+        function memoryRows(semantic) {
+          const facts = (semantic?.facts ?? []).map((t) => parseMemoryEntry(t, 'fact'));
+          const prefs = (semantic?.preferences ?? []).map((t) => parseMemoryEntry(t, 'preference'));
+          return [...facts, ...prefs];
+        }
+
+        /** 排序：有时间的按 day+time 排，无时间的（偏好）沉到最后 */
+        function sortMemoryRows(rows, order) {
+          const key = (e) => (e.day ? e.day + e.time : '');
+          const sorted = [...rows].sort((a, b) => {
+            const ka = key(a);
+            const kb = key(b);
+            if (!ka && !kb) return 0;
+            if (!ka) return 1;
+            if (!kb) return -1;
+            return kb.localeCompare(ka);
+          });
+          return order === 'newest' ? sorted : sorted.reverse();
+        }
+
+        /**
+         * 记忆正文渲染：把模型的 **强调** 变成 <b>，并按搜索词加 <mark>。
+         * 先按 ** 分段（交替加粗）再逐段 escape + 高亮，避免把标记当字面量、也避免注入。
+         */
+        function renderMemoryBody(text, query) {
+          const segs = String(text ?? '').split('**');
+          const esc = (s) =>
+            s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+          return segs
+            .map((seg, i) => {
+              if (!seg) return '';
+              let html;
+              if (query) {
+                const lower = seg.toLowerCase();
+                const needle = query.toLowerCase();
+                let out = '';
+                let from = 0;
+                let at;
+                while ((at = lower.indexOf(needle, from)) >= 0) {
+                  out += esc(seg.slice(from, at));
+                  out += '<mark>' + esc(seg.slice(at, at + needle.length)) + '</mark>';
+                  from = at + needle.length;
+                }
+                out += esc(seg.slice(from));
+                html = out;
+              } else {
+                html = esc(seg);
+              }
+              return i % 2 === 1 ? '<b>' + html + '</b>' : html;
+            })
+            .join('');
+        }
+
+        /** 一行：时间 | 圆点 | 正文（两行截断，点击展开） */
+        function MemRow({ entry, query }) {
+          const [open, setOpen] = React.useState(false);
+          const [clipped, setClipped] = React.useState(false);
+          const textRef = React.useRef(null);
+
+          React.useEffect(() => {
+            const el = textRef.current;
+            if (el) setClipped(el.scrollHeight > el.clientHeight + 2);
+          }, [query, entry.body, open]);
+
+          const isPref = entry.kind === 'preference';
+          return h(
+            'div',
+            { className: NS + '-c-mem' },
+            h(
+              'div',
+              { className: NS + '-c-mem-time' },
+              entry.day
+                ? [
+                    h('span', { key: 'd', className: 'd' }, entry.day),
+                    ' ',
+                    h('span', { key: 't', className: 't' }, entry.time),
+                  ]
+                : h('span', { className: 'none' }, '—'),
+            ),
+            h('div', { className: NS + '-c-mem-dot' + (isPref ? ' pref' : '') }),
+            h(
+              'div',
+              { className: NS + '-c-mem-main' },
+              h('p', {
+                ref: textRef,
+                className: NS + '-c-mem-text' + (open ? ' open' : ''),
+                onClick: () => setOpen((v) => !v),
+                dangerouslySetInnerHTML: {
+                  __html:
+                    (isPref ? '<span class="' + NS + '-c-kd pref">偏好</span>' : '') +
+                    renderMemoryBody(entry.body, query),
+                },
+              }),
+              clipped || open
+                ? h(
+                    'span',
+                    { className: NS + '-c-mem-more', onClick: () => setOpen((v) => !v) },
+                    open ? '收起' : '展开',
+                  )
+                : null,
+            ),
+          );
+        }
+
+        /** 全量记忆弹窗：搜索 + 事实/偏好筛选（v0.3.11 方案 B） */
+        function MemoryModal({ rows, order, onClose }) {
+          const [q, setQ] = React.useState('');
+          const [kind, setKind] = React.useState('all');
+
+          React.useEffect(() => {
+            const onKey = (e) => {
+              if (e.key === 'Escape') onClose();
+            };
+            document.addEventListener('keydown', onKey);
+            return () => document.removeEventListener('keydown', onKey);
+          }, [onClose]);
+
+          const counts = {
+            all: rows.length,
+            fact: rows.filter((r) => r.kind === 'fact').length,
+            preference: rows.filter((r) => r.kind === 'preference').length,
+          };
+          const needle = q.trim().toLowerCase();
+          const list = sortMemoryRows(rows, order).filter((r) => {
+            if (kind !== 'all' && r.kind !== kind) return false;
+            if (!needle) return true;
+            return r.body.toLowerCase().includes(needle) || String(r.day ?? '').includes(needle);
+          });
+
+          return portal(
+            h(
+              'div',
+              {
+                className: NS + '-c-mm-back',
+                onClick: (e) => {
+                  if (e.target === e.currentTarget) onClose();
+                },
+              },
+              h(
+                'div',
+                { className: NS + '-c-mm' },
+                h(
+                  'div',
+                  { className: NS + '-c-mm-head' },
+                  h('span', { className: 't' }, '记忆 · 全部'),
+                  h('span', { className: 'c num' }, '共 ' + rows.length + ' 条'),
+                  h('button', { className: NS + '-c-mm-x', onClick: onClose, title: '关闭（Esc）' }, '✕'),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-mm-tools' },
+                  h('input', {
+                    className: NS + '-c-mm-search',
+                    value: q,
+                    placeholder: '搜索记忆内容（如 npm、403、stars）…',
+                    onChange: (e) => setQ(e.target.value),
+                  }),
+                  ...[
+                    ['all', '全部'],
+                    ['fact', '事实'],
+                    ['preference', '偏好'],
+                  ].map(([k, label]) =>
+                    h(
+                      'button',
+                      {
+                        key: k,
+                        className: NS + '-c-mm-chip' + (kind === k ? ' on' : ''),
+                        onClick: () => setKind(k),
+                      },
+                      label,
+                      h('span', { className: 'n num' }, counts[k]),
+                    ),
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-mm-list' },
+                  list.length === 0
+                    ? h('div', { className: NS + '-c-mm-empty' }, '没有匹配的记忆')
+                    : list.map((r, i) => h(MemRow, { key: i, entry: r, query: q.trim() })),
+                ),
+                h(
+                  'div',
+                  { className: NS + '-c-mm-foot' },
+                  h('span', null, 'Esc 关闭 · 点击任意一条展开全文'),
+                  h('span', { className: 'grow' }),
+                  h(
+                    'span',
+                    { className: 'num' },
+                    list.length === rows.length
+                      ? '全部 ' + list.length + ' 条'
+                      : '筛选出 ' + list.length + ' / ' + rows.length + ' 条',
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        function BotMemoryCard({ semantic, limit }) {
+          const rows = memoryRows(semantic);
+          const [order, setOrder] = React.useState('newest');
+          const [openAll, setOpenAll] = React.useState(false);
+          const [atBottom, setAtBottom] = React.useState(false);
+          const scrollRef = React.useRef(null);
+
+          const sorted = sortMemoryRows(rows, order);
+          const preview = limit ? sorted.slice(0, limit) : sorted;
+
+          const onScroll = () => {
+            const el = scrollRef.current;
+            if (!el) return;
+            setAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - 4);
+          };
+
           return h(
             CCard,
             null,
             h(CCardHead, {
               title: '记忆',
               count: rows.length ? '共 ' + rows.length + ' 条' : '空',
-              right: onAll && rows.length > view.length ? h(CLink, { onClick: onAll }, '全部 →') : null,
+              right: rows.length
+                ? h(
+                    CLink,
+                    { onClick: () => setOrder(order === 'newest' ? 'oldest' : 'newest') },
+                    order === 'newest' ? '最新在前' : '最早在前',
+                  )
+                : null,
             }),
             h(
               'div',
               { className: NS + '-c-card-body tight' },
-              view.length === 0
+              rows.length === 0
                 ? h(
                     'div',
                     { className: NS + '-c-empty' },
                     h('p', null, '还没有沉淀下来的事实。跑几轮后，他会记住稳定的结论。'),
                   )
-                : view.map((m, i) =>
+                : h(
+                    'div',
+                    { className: NS + '-c-memwrap' + (atBottom ? ' at-bottom' : '') },
                     h(
                       'div',
-                      { key: i, className: NS + '-c-mem' },
-                      h('span', { className: NS + '-c-pill kd' }, m.kind),
-                      h('div', { style: { minWidth: 0 } }, h('p', null, m.text)),
+                      { className: NS + '-c-memscroll', ref: scrollRef, onScroll },
+                      preview.map((r, i) => h(MemRow, { key: i, entry: r })),
                     ),
                   ),
             ),
+            rows.length > 0
+              ? h(
+                  'div',
+                  { className: NS + '-c-memfoot' },
+                  h(
+                    'span',
+                    { className: 'num' },
+                    limit && preview.length < rows.length
+                      ? '显示前 ' + preview.length + ' 条 · 共 ' + rows.length + ' 条'
+                      : '共 ' + rows.length + ' 条 · 可滚动查看',
+                  ),
+                  h('span', { className: 'grow' }),
+                  h(CLink, { onClick: () => setOpenAll(true) }, '查看全部 ' + rows.length + ' 条 →'),
+                )
+              : null,
+            openAll ? h(MemoryModal, { rows, order, onClose: () => setOpenAll(false) }) : null,
           );
         }
 
@@ -3398,7 +3789,7 @@ window.__ModuleLoader__.load({
             h(BotSituation, { bot, detail, act, busy, onForm }),
             h(BotGoalCard, { bot, detail, busy, onForm }),
             h(BotRunsCard, { runs: detail?.runs ?? [], preview: true, onAll: onDetail, onOpen: onOpenRun, botName: bot.name }),
-            h(BotMemoryCard, { semantic: detail?.semantic, limit: 2 }),
+            h(BotMemoryCard, { semantic: detail?.semantic, limit: 3 }),
           );
         }
 

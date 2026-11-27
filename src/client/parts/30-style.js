@@ -383,10 +383,151 @@ function injectStyle() {
 .${NS}-c-run .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--c-l4); }
 .${NS}-c-run .cv { color: var(--c-l4); display: flex; }
 
-/* 记忆 */
-.${NS}-c-mem { display: flex; gap: 8px; padding: 10px 0; border-top: 1px solid var(--c-stroke); }
-.${NS}-c-mem:first-of-type { border-top: 0; }
-.${NS}-c-mem .kd { flex: none; margin-top: 1px; }
+/* ============================================================
+   记忆（v0.3.11）：限高滚动 + 时间栏对齐 + 全量弹窗
+   —— 旧实现无高度上限，21 条就撑到 1100px，把下面的卡片挤走。
+   ============================================================ */
+.${NS}-c-memwrap { position: relative; }
+.${NS}-c-memwrap::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 30px;
+  pointer-events: none; opacity: 1; transition: opacity .2s;
+  background: linear-gradient(180deg, transparent, var(--c-card));
+}
+.${NS}-c-memwrap.at-bottom::after { opacity: 0; }
+
+.${NS}-c-memscroll {
+  max-height: 258px; overflow-y: auto; overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.${NS}-c-memscroll::-webkit-scrollbar { width: 8px; }
+.${NS}-c-memscroll::-webkit-scrollbar-track { background: transparent; }
+.${NS}-c-memscroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; }
+.${NS}-c-memscroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.24); }
+
+/* 一行：92px 时间 | 6px 圆点 | 正文 */
+.${NS}-c-mem {
+  display: grid; grid-template-columns: 92px 6px minmax(0, 1fr);
+  gap: 10px; align-items: start;
+  padding: 9px 0; border-top: 0.5px solid var(--c-stroke);
+}
+.${NS}-c-mem:first-child { border-top: 0; }
+
+/* 时间栏：等宽数字，日期/时刻分段着色 → 纵向严格对齐 */
+.${NS}-c-mem-time {
+  font-size: 11px; line-height: 20px; white-space: nowrap;
+  font-variant-numeric: tabular-nums; color: var(--c-l3);
+}
+.${NS}-c-mem-time .d { color: var(--c-l2); }
+.${NS}-c-mem-time .t { color: var(--c-l3); }
+.${NS}-c-mem-time .none { color: var(--c-l4); }
+
+.${NS}-c-mem-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--c-brand); margin-top: 7px;
+}
+.${NS}-c-mem-dot.pref { background: var(--c-warn); }
+
+.${NS}-c-mem-main { min-width: 0; }
+.${NS}-c-mem-text {
+  margin: 0; font-size: 13px; line-height: 20px; color: var(--c-l2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; cursor: pointer;
+}
+.${NS}-c-mem-text.open { -webkit-line-clamp: unset; }
+.${NS}-c-mem-text b { color: var(--c-l1); font-weight: 500; }
+.${NS}-c-mem-text mark {
+  background: rgba(224,116,92,.28); color: var(--c-l1);
+  border-radius: 3px; padding: 0 2px;
+}
+.${NS}-c-kd {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px;
+  border-radius: 999px; background: var(--c-layer3); color: var(--c-l2);
+  font-size: 11px; font-weight: 500; white-space: nowrap;
+  margin-right: 6px; vertical-align: 1px;
+}
+.${NS}-c-kd.pref { color: var(--c-warn); background: rgba(224,178,92,.12); }
+
+.${NS}-c-mem-more {
+  font-size: 11px; color: var(--c-brand-text);
+  cursor: pointer; margin-top: 1px; display: inline-block;
+}
+
+/* 卡片底栏：显示 N/M + 查看全部 */
+.${NS}-c-memfoot {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-top: 0.5px solid var(--c-stroke);
+  font-size: 12px; color: var(--c-l3);
+}
+.${NS}-c-memfoot .grow { flex: 1; }
+
+/* ---------- 记忆全量弹窗 ---------- */
+.${NS}-c-mm-back {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; font-family: ${FONT};
+}
+.${NS}-c-mm {
+  width: 100%; max-width: 620px; max-height: min(78vh, 720px);
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 0.5px solid var(--c-stroke, var(--dsw-alias-border-l2));
+  border-radius: var(--c-r-lg);
+  background: var(--c-layer3, var(--dsw-alias-bg-layer-3, #242429));
+  box-shadow: 0 24px 64px rgba(0,0,0,.55);
+}
+.${NS}-c-mm-head {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-bottom: 0.5px solid var(--c-stroke);
+}
+.${NS}-c-mm-head .t { font-size: 15px; font-weight: 600; color: var(--c-l1); }
+.${NS}-c-mm-head .c { font-size: 12px; color: var(--c-l3); }
+.${NS}-c-mm-x {
+  margin-left: auto; width: 26px; height: 26px; border-radius: var(--c-r-md);
+  border: none; background: transparent; color: var(--c-l3);
+  cursor: pointer; display: grid; place-items: center;
+  font-size: 15px; line-height: 1; font-family: inherit;
+}
+.${NS}-c-mm-x:hover { background: var(--c-hover); color: var(--c-l1); }
+
+.${NS}-c-mm-tools {
+  flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 12px 18px; border-bottom: 0.5px solid var(--c-stroke);
+}
+.${NS}-c-mm-search {
+  flex: 1; min-width: 180px; height: 30px; border-radius: var(--c-r-md);
+  border: 0.5px solid var(--c-stroke); background: var(--c-card);
+  color: var(--c-l1); font-size: 12px; padding: 0 10px; outline: none;
+  font-family: inherit;
+}
+.${NS}-c-mm-search::placeholder { color: var(--c-l4); }
+.${NS}-c-mm-search:focus { border-color: var(--c-l3); }
+.${NS}-c-mm-chip {
+  height: 26px; padding: 0 11px; border-radius: 999px;
+  border: 0.5px solid var(--c-stroke); background: transparent;
+  color: var(--c-l2); font-size: 11px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 5px;
+  cursor: pointer; font-family: inherit;
+}
+.${NS}-c-mm-chip:hover { background: var(--c-hover); }
+.${NS}-c-mm-chip.on { background: var(--c-layer3); color: var(--c-l1); }
+.${NS}-c-mm-chip .n { color: var(--c-l3); font-variant-numeric: tabular-nums; }
+.${NS}-c-mm-chip.on .n { color: var(--c-l2); }
+
+.${NS}-c-mm-list {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: 4px 18px 12px;
+}
+.${NS}-c-mm-list::-webkit-scrollbar { width: 8px; }
+.${NS}-c-mm-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; }
+
+.${NS}-c-mm-empty { padding: 28px 8px; text-align: center; font-size: 12px; color: var(--c-l3); }
+
+.${NS}-c-mm-foot {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-top: 0.5px solid var(--c-stroke);
+  font-size: 11px; color: var(--c-l3);
+}
+.${NS}-c-mm-foot .grow { flex: 1; }
 .${NS}-c-mem p { margin: 0; font-size: 13px; line-height: 20px; color: var(--c-l1); }
 .${NS}-c-mem time { display: block; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--c-l3); }
 

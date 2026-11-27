@@ -1191,4 +1191,71 @@ console.log(
   console.log('✅ 配置保存合并为单次 POST（资料 + 模型 + 预算 + 节奏）');
 }
 
+// 20. ⭐ v0.3.11：记忆卡限高滚动 + 时间栏 + 全量弹窗
+//     旧实现无高度上限（21 条 → 1100px），把下面的配置/快照卡挤走。
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'client', 'bundle.js'),
+    'utf8',
+  );
+
+  // 20a. 固定高度滚动容器（A）
+  if (!src.includes('-c-memscroll')) {
+    console.log('❌ 记忆卡没有限高滚动容器（-c-memscroll）——会随记忆条数无限变高');
+    process.exit(1);
+  }
+  const scrollRule = src.slice(src.indexOf('-c-memscroll {'), src.indexOf('-c-memscroll {') + 320);
+  if (!/max-height:\s*\d+px/.test(scrollRule) || !/overflow-y:\s*auto/.test(scrollRule)) {
+    console.log('❌ -c-memscroll 缺少 max-height / overflow-y:auto（高度仍会随内容增长）');
+    process.exit(1);
+  }
+  console.log('✅ 记忆卡固定高度滚动（含 max-height + overflow-y:auto）');
+
+  // 20b. 时间栏（D）：解析前缀 + 固定列宽
+  if (!src.includes('parseMemoryEntry') || !/\\d\{2\}-\\d\{2\}/.test(src)) {
+    console.log('❌ 缺少时间前缀解析（parseMemoryEntry）——时间栏无法对齐');
+    process.exit(1);
+  }
+  if (!/-c-mem-time/.test(src) || !/tabular-nums/.test(src)) {
+    console.log('❌ 时间栏缺少等宽数字（tabular-nums）——纵向不会严格对齐');
+    process.exit(1);
+  }
+  const memGrid = src.slice(src.indexOf('-c-mem {'), src.indexOf('-c-mem {') + 200);
+  if (!/grid-template-columns/.test(memGrid)) {
+    console.log('❌ 记忆行不是网格布局——时间/圆点/正文无法固定对齐');
+    process.exit(1);
+  }
+  console.log('✅ 时间栏：前缀解析 + 等宽数字 + 网格对齐');
+
+  // 20c. 全量弹窗（B）：搜索 + 筛选 + Esc + portal
+  if (!src.includes('function MemoryModal(')) {
+    console.log('❌ 缺少记忆全量弹窗（MemoryModal）');
+    process.exit(1);
+  }
+  const mmIdx = src.indexOf('function MemoryModal(');
+  const mmBody = src.slice(mmIdx, mmIdx + 3000);
+  for (const [needle, label] of [
+    ['-c-mm-search', '搜索框'],
+    ['-c-mm-chip', '事实/偏好筛选'],
+    ["e.key === 'Escape'", 'Esc 关闭'],
+  ]) {
+    if (!mmBody.includes(needle)) {
+      console.log('❌ 记忆弹窗缺少：' + label);
+      process.exit(1);
+    }
+  }
+  if (!/return portal\(/.test(mmBody)) {
+    console.log('❌ 记忆弹窗没有 portal 到 body（会被详情页滚动容器裁切）');
+    process.exit(1);
+  }
+  console.log('✅ 记忆弹窗：搜索 + 筛选 + Esc + portal');
+
+  // 20d. 正文渲染必须处理 ** 强调，不能把星号当字面量
+  if (!src.includes('renderMemoryBody') || !/split\('\*\*'\)/.test(src)) {
+    console.log('❌ 记忆正文没有处理 ** 强调（会显示成字面量星号）');
+    process.exit(1);
+  }
+  console.log('✅ 记忆正文渲染 ** 强调 + 搜索高亮');
+}
+
 console.log('\n=== 全部通过 ===');
